@@ -904,6 +904,7 @@
       : n.type === 'ethernet' ? (n.mbps > 0 ? `${n.mbps} Mbps` : 'Ethernet') : 'Online';
     $('netIp').textContent = off ? '\u00a0' : n.ip || '\u00a0';   // keep the row so the lines stay level with the weather
     $('topNet').hidden = false;
+    setTimeout(layoutSoon, 0);
   }
   function applyNet(n) {
     topNet(n);
@@ -1750,10 +1751,12 @@
       if (s !== wxShift[id]) { wxShift[id] = s; $(id).style.transform = s ? `translateY(${s}px)` : ''; }
     }
   }
+  let layoutQueued = false;
+  function layoutSoon() { if (layoutQueued) return; layoutQueued = true; requestAnimationFrame(() => { layoutQueued = false; alignClockHead(); alignWx(); }); }
   function drawWx() {
     const el = $('wx'), c = WX.cache, show = WX.on && WX.city && c && c.city === WX.city.name;
     el.hidden = !show; $('top').classList.toggle('has-wx', !!show);
-    if (!show) return;
+    if (!show) { layoutSoon(); return; }
     const old = Date.now() - c.t > 90 * 60000, stale = WX.stale || old;
     const [ico, word] = wmo(c.code);
     $('wxIco').innerHTML = ICONS[ico];
@@ -1761,6 +1764,7 @@
     $('wxCond').textContent = `${word} // H ${deg(c.hi)}° L ${deg(c.lo)}°`;
     $('wxCity').textContent = `${c.city} // ${stale ? 'last update ' : ''}${ageText(c.t)}`;
     el.classList.toggle('is-stale', stale);
+    layoutSoon();
   }
   async function wxFetch() {
     if (!WX.on || !WX.city) return;                           // off: no network, ever
@@ -2059,13 +2063,13 @@
     const hm = `${h % 12 || 12}:${two(d.getMinutes())}`, ap = h < 12 ? 'am' : 'pm';
     const date = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     $('clkHM').textContent = hm; $('clkS').textContent = J.secs.i ? '' : ':' + two(d.getSeconds()); $('clkAP').textContent = ap;
-    $('clkDate').textContent = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    alignClockHead();
+    const short = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    if (short !== $('clkDate').textContent) { $('clkDate').textContent = short; layoutSoon(); }
     if (d.getSeconds() % 30 === 0) drawWx();
-    alignWx();
     $('sbHM').textContent = hm; $('sbAP').textContent = ap; $('sbDate').textContent = date;
   }
   tick(); setInterval(tick, 1000);
+  window.addEventListener('resize', layoutSoon); if (document.fonts) { document.fonts.ready.then(layoutSoon); document.fonts.addEventListener('loadingdone', layoutSoon); }
 
   const standby = $('standby'), sbPos = $('sbPos');
   const AWAY_MIN = [0, 1, 3, 5, 10];

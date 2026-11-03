@@ -129,7 +129,6 @@
                 --cut: var(--hd-cut-s); --bw: 1px; --line: rgba(var(--hd-act-rgb), .5); --fill: rgba(var(--hd-act-rgb), .06); }
   .hero__next .hd-label { color: var(--hd-act); font-size: 20px; }
   .hero__next .t { font-size: 26px; color: var(--hd-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .hero__next .ok { display: inline-flex; align-items: center; gap: 8px; color: var(--hd-chrome); font-size: 22px; margin-left: 6px; }
 
   /* ---- section bar ---- */
   .bar { position: absolute; left: 96px; right: 96px; top: 506px; height: 50px; display: flex; align-items: center; gap: 22px; }
@@ -504,7 +503,7 @@
     </div>
     <h1 class="hd-title-card hero__title" id="hTitle" data-hd-glitch-text data-layers="2" data-glitch-on="mode">Netflix</h1>
     <p class="hd-body hero__desc" id="hDesc"></p>
-    <div class="hero__next hd-frame" id="hNext"><span class="hd-label" id="nLabel">Continue</span><span class="t" id="nText"></span><span class="ok"><span class="hd-key hd-key--word">OK</span><span id="nAct">Open</span></span></div>
+    <div class="hero__next hd-frame" id="hNext"><span class="hd-label" id="nLabel">Continue</span><span class="t" id="nText"></span></div>
   </section>
 
   <nav class="bar">
@@ -1031,7 +1030,7 @@
     if (o.name !== lastName) { lastName = o.name; HD.glitch(hTitle); }   // the echo shows only when the thing changes
     $('hLabel').textContent = o.label || 'Now on';
     $('hChip').textContent = o.chip; $('hIdx').textContent = o.idx || ''; $('hDesc').textContent = o.desc;
-    $('nLabel').textContent = o.next[0]; $('nText').textContent = o.next[1]; $('nAct').textContent = o.act || 'Open';
+    $('nLabel').textContent = o.next[0]; $('nText').textContent = o.next[1];
     $('nLabel').hidden = !o.next[0]; $('nText').hidden = !o.next[1];
     hero.style.setProperty('--app', o.glow);
     takeover(o.bg, o.glow);

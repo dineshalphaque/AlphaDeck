@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Home Deck</title>
+<script>
+  // the saved theme goes on before the first paint, so the startup screen opens in it instead of Normal's red
+  // (same order as THEMES in the main script)
+  try {
+    const mode = ['normal', 'lime', 'violet'][JSON.parse(localStorage.getItem('homedeck-theme'))];
+    if (mode) document.documentElement.setAttribute('data-hd-mode', mode);
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="base.css">
 <link rel="stylesheet" href="kit/tokens.css">
 <link rel="stylesheet" href="kit/components.css">
@@ -23,8 +31,8 @@
     --acc: #5ef6ff; --acc-rgb: 94, 246, 255; --acc-dim: #56a3a2;
     --oct: polygon(9% 0, 91% 0, 100% 9%, 100% 91%, 91% 100%, 9% 100%, 0 91%, 0 9%);
   }
-  /* the viewer's accent color re-keys the live ink everywhere (Normal mode only) */
-  html:not([data-hd-mode="alert"]):not([data-hd-mode="lime"]) .stage {
+  /* the viewer's accent color re-keys the live ink everywhere, in every theme (Theme keeps the theme's own) */
+  html.has-acc:not([data-hd-mode="alert"]) .stage {
     --hd-act: var(--acc); --hd-act-rgb: var(--acc-rgb); --hd-act-soft: var(--acc); --hd-act-dim: var(--acc-dim);
     --hd-focus: var(--acc);
     --hd-act-line: rgba(var(--acc-rgb), .9); --hd-act-faint: rgba(var(--acc-rgb), .14); --hd-act-ghost: rgba(var(--acc-rgb), .07);
@@ -57,7 +65,7 @@
                 linear-gradient(0deg, var(--hd-ground) 0%, rgba(7, 9, 15, .85) 30%, transparent 47%),
                 var(--hd-haze-top); }
   .tint { position: absolute; inset: 0; pointer-events: none; background: var(--acc); opacity: .045; }
-  [data-hd-mode="alert"] .tint, [data-hd-mode="lime"] .tint { display: none; }
+  [data-hd-mode="alert"] .tint, html:not(.has-acc)[data-hd-mode="lime"] .tint, html:not(.has-acc)[data-hd-mode="violet"] .tint { display: none; }
   html.lite .bg-glow { display: none; }
   .hd-edge-rails::before { left: 22px; } .hd-edge-rails::after { right: 22px; }
 
@@ -416,6 +424,7 @@
   .standby__pos.fade { opacity: 0; }
   .standby__clock { color: var(--hd-chrome); font-size: 200px; text-shadow: var(--hd-glow-text); }
   .standby__clock .hd-num__frac { color: var(--hd-chrome-dim); }
+  .standby__rain { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
 
   .boot { position: absolute; inset: 0; z-index: 1300; background: var(--hd-c-void); display: grid; place-items: center;
           transition: opacity var(--hd-t-slow) var(--hd-ease-out); }
@@ -531,7 +540,7 @@
 
   <div class="jump" id="jump">
     <div class="hd-panel hd-panel--spine-act">
-      <div class="hd-panel__head">Jump To <span class="jump__ver">Home Deck v0.1 // glidian.dev</span></div>
+      <div class="hd-panel__head">Jump To <span class="jump__ver">Home Deck // glidian.dev</span></div>
       <div id="jList"></div>
       <div class="jump__foot">
         <span class="hd-hint"><span class="hd-key">&larr;</span><span class="hd-key">&rarr;</span>Change</span>
@@ -673,6 +682,10 @@
   const DEV = NATIVE ? NATIVE.device() : null;
   const deckSub = DEV ? `${DEV.name || 'This TV'} // ${DEV.panel >= 2160 ? '4K' : DEV.panel >= 1080 ? 'HD' : 'TV'} display` : 'Living room // 4K display';
   $('brandSub').textContent = deckSub;
+  // the version on show (Jump To's header, About) is the installed app's own, so a release can't leave an old one behind;
+  // the browser demo has no app around it and shows its copy's version (bump this one with build.gradle)
+  const VER = (NATIVE && NATIVE.appInfo('dev.glidian.homedeck').version) || '0.2.1';
+  document.querySelector('.jump__ver').textContent = `Home Deck v${VER} // glidian.dev`;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /* =====================================================================
@@ -937,9 +950,9 @@
        <div class="tiles tiles--apps">${l.map(i => appTile(i, 'art--sm')).join('')}</div></div>`).join('');
   }
   // glide the Apps view so the row you are on sits at the top (the last rows stop at the bottom)
-  function scrollApps(row) {
+  function scrollApps(row, el) {
     const sc = $('apps'), view = sc.parentNode;
-    const y = Math.max(0, Math.min(row.offsetTop, sc.offsetHeight - view.clientHeight + 70));
+    const y = Math.max(0, Math.min(Math.max(row.offsetTop, row.offsetTop + ((el ? el.offsetTop + el.offsetHeight - view.clientHeight + 70 : 0))), sc.offsetHeight - view.clientHeight + 70));
     sc.style.transform = `translateY(${-y}px)`;
     sc.style.perspectiveOrigin = `50% ${row.offsetTop + row.offsetHeight / 2}px`;   // the lean pivots on the row you are on
   }
@@ -1133,7 +1146,7 @@
     deck.querySelectorAll('.row').forEach(r => { r.classList.toggle('is-active', r === row); if (r !== row) r.style.setProperty('--lean', '0deg'); });
     if (row) {
       lastIn[sec] = el;
-      if (row.closest('#apps')) scrollApps(row);
+      if (row.closest('#apps')) scrollApps(row, el);
       const r = el.getBoundingClientRect(), rr = row.getBoundingClientRect();
       row.style.setProperty('--lean', `${(-((r.left + r.width / 2 - rr.left) / rr.width - .5) * 4).toFixed(2)}deg`);
     }
@@ -1143,7 +1156,7 @@
   });
 
   /* =====================================================================
-     Toasts, hints, Lite (also automatic), Lime mode
+     Toasts, hints, Lite (also automatic), themes
      ===================================================================== */
   const toast = (kind, label, title, text, timeout = 3800) => { document.querySelectorAll('.hd-toast').forEach(t => t.remove()); return HD.toast({ kind, label, title, text, timeout }); };
   let hintTimer;
@@ -1168,12 +1181,18 @@
     requestAnimationFrame(step);
     if (forced) setTimeout(() => { if (!isLite()) setLite(true, 'slow'); }, 1600);
   }
-  const isLime = () => HD.getMode() === 'lime';
-  function setLime(on) {
-    HD.setMode(on ? 'lime' : 'normal');
-    $('brandSub').textContent = on ? 'Lime mode // lime display' : deckSub;
-    if (J.lime) J.lime.i = on ? 1 : 0;
-    toast('area', 'Display mode', on ? 'Lime mode on' : 'Back to normal', on ? 'Lime on teal-black.' : 'Your color again.');
+  // themes: the kit's display modes, picked in Jump To (or H for the next one) and kept across restarts
+  // (the script in <head> puts the saved one on early; keep its list in this order)
+  const THEMES = [
+    { mode: 'normal', name: 'Normal', note: 'Your color again.' },
+    { mode: 'lime', name: 'Lime', note: 'Lime on teal-black.' },
+    { mode: 'violet', name: 'Violet', note: 'Violet with a green edge.' },
+  ];
+  function setTheme(n, quiet) {   // the line under the name keeps the TV's name and display in every theme
+    const t = THEMES[n] || THEMES[0];
+    HD.setMode(t.mode);
+    J.theme.i = THEMES.indexOf(t); store.set('theme', J.theme.i);
+    if (!quiet) toast('area', 'Theme', t.mode === 'normal' ? 'Back to normal' : `${t.name} theme on`, t.note);
   }
 
   /* =====================================================================
@@ -1193,13 +1212,28 @@
   }
 
   /* ---- Jump To ---- */
-  const ACCENTS = [['Cyan', '#5ef6ff', '#56a3a2'], ['Yellow', '#ffd740', '#c9a634'], ['Green', '#1bd676', '#25a865'], ['Violet', '#b36bff', '#8f5bd0'],
-                   ['Orange', '#ff9f43', '#d08038'], ['Blue', '#6aa8ff', '#5a86c8'], ['Lime', '#ddff5e', '#a9c25a']];
+  // the first accent, Theme, keeps each theme's own highlight; any other one re-keys the highlight in every theme
+  const ACCENTS = [['Theme', null, null], ['Cyan', '#5ef6ff', '#56a3a2'], ['Yellow', '#ffd740', '#c9a634'], ['Green', '#1bd676', '#25a865'],
+                   ['Violet', '#b36bff', '#8f5bd0'], ['Orange', '#ff9f43', '#d08038'], ['Blue', '#6aa8ff', '#5a86c8'], ['Lime', '#ddff5e', '#a9c25a']];
+  const swatch = n => ACCENTS[n][1] || 'var(--hd-act)';
   function applyAccent(n) {
-    const [, hex, dim] = ACCENTS[n], v = parseInt(hex.slice(1), 16);
+    const [, hex, dim] = ACCENTS[n];
+    store.set('acc-hex', hex);                                  // the rainy city screen savers read it (rain/index.html)
+    root.classList.toggle('has-acc', !!hex);
+    if (!hex) return ['--acc', '--acc-dim', '--acc-rgb'].forEach(p => root.style.removeProperty(p));
+    const v = parseInt(hex.slice(1), 16);
     root.style.setProperty('--acc', hex); root.style.setProperty('--acc-dim', dim);
     root.style.setProperty('--acc-rgb', `${v >> 16 & 255}, ${v >> 8 & 255}, ${v & 255}`);
   }
+  // saved before Theme was added: 'acc' counted from Cyan, so Cyan becomes Theme (the same look in Normal) and the rest move up one
+  const savedAccent = () => {
+    const n = store.get('accent', -1), old = store.get('acc', 0);
+    const i = n >= 0 ? n : old > 0 ? old + 1 : 0;
+    return i >= 0 && i < ACCENTS.length ? i : 0;
+  };
+  // what the away screen (and the TV's screen saver, away.html) shows: the dim clock, or one of the rainy city views
+  const SAVERS = [['Clock', null], ['Window', 'window'], ['Downpour', 'downpour']];
+  const savedSaver = () => { const i = store.get('saver', 0); return i >= 0 && i < SAVERS.length ? i : 0; };
   const J = {
     pic:   { name: 'Picture mode', icon: 'picture', vals: ['Cinema', 'Vivid', 'Game', 'Standard'], i: 0 },
     snd:   { name: 'Sound output', icon: 'sound', vals: ['TV speakers', 'Soundbar (HDMI ARC)', 'Soundbar (optical)', 'Bluetooth'], i: store.get('snd', 1) },
@@ -1208,10 +1242,12 @@
     sep:   null,
     row1:  { name: 'Row 1 name', vals: ['Favorites', 'Pinned', 'My apps', 'Quick launch', 'Most used', 'Custom…'], i: store.get('row1n', 0), custom: store.get('row1c', '') },
     row2:  { name: 'Row 2 name', vals: ['Jump back in', 'Recently used', 'Recent', 'Back to it', 'Last opened', 'Custom…'], i: store.get('row2n', 0), custom: store.get('row2c', '') },
-    acc:   { name: 'Accent color', vals: ACCENTS.map(a => a[0]), i: store.get('acc', 0) },
+    theme: { name: 'Theme', vals: THEMES.map(t => t.name), i: 0 },
+    acc:   { name: 'Accent color', vals: ACCENTS.map(a => a[0]), i: savedAccent() },
     away:  { name: 'Away screen', vals: ['1 min', '3 min', '5 min', '10 min'], i: [0, 1, 2, 3].includes(store.get('away', 2)) ? store.get('away', 2) : 2 },
+    saver: { name: 'Screen saver', vals: SAVERS.map(s => s[0]), i: savedSaver() },
+    secs:  { name: 'Clock seconds', vals: ['On', 'Off'], i: store.get('secs', 0) === 1 ? 1 : 0 },
     lite:  { name: 'Lite mode', vals: ['Off', 'On'], i: 0 },
-    lime:  { name: 'Lime mode', vals: ['Off', 'On'], i: 0 },
     iconpack: { name: 'IconPack', vals: ['Open'], i: 0, action: openPackPicker },
     ext:   { name: 'Online extras', vals: ['Open'], i: 0 },
     setup: { name: 'Setup', vals: ['Run again'], i: 0 },
@@ -1232,7 +1268,7 @@
     J.inp.i = Math.min(J.inp.i, J.inp.vals.length - 1);
     jList.innerHTML = Object.entries(J).map(([id, o]) => !o ? '<div class="jump__sep"></div>' : `
       <div class="jl hd-frame" data-jl="${id}"${jumpOpen ? ' data-f' : ''}>
-        <span class="jl__ico">${o.icon ? `<img src="${ICON(o.icon, '-mini')}" alt="">` : id === 'acc' ? `<span class="jl__sw" style="--sw:${ACCENTS[o.i][1]}"></span>` : '<i></i>'}</span>
+        <span class="jl__ico">${o.icon ? `<img src="${ICON(o.icon, '-mini')}" alt="">` : id === 'acc' ? `<span class="jl__sw" style="--sw:${swatch(o.i)}"></span>` : '<i></i>'}</span>
         <span class="jl__name">${o.name}</span>
         <span class="jl__val">${o.vals.length > 1 ? '<span class="arr">&lsaquo;</span>' : ''}${esc(valText(o))}${o.vals.length > 1 ? '<span class="arr">&rsaquo;</span>' : ''}</span>
       </div>`).join('');
@@ -1244,6 +1280,7 @@
   const valText = o => o.vals[o.i] === 'Custom…' ? (o.custom ? `"${o.custom}"` : 'Custom… (OK to type)') : o.vals[o.i];
   function applyRows() { $('name-fav').textContent = rowName(J.row1); $('name-cw').textContent = rowName(J.row2); applyAccent(J.acc.i); }
   applyRows();
+  setTheme(store.get('theme', 0), true);
   function openJump() {
     if (jumpOpen || trapped) return;
     closeOpts(false);
@@ -1260,16 +1297,18 @@
     if (J[id]?.action) return;
     const o = J[id]; o.i = (o.i + d + o.vals.length) % o.vals.length;
     if (id === 'row1' || id === 'row2') { store.set(id + 'n', o.i); applyRows(); }
-    if (id === 'acc') { store.set(id, o.i); applyRows(); }
+    if (id === 'acc') { store.set('accent', o.i); applyRows(); }
     if (id === 'snd') store.set('snd', o.i);
     if (id === 'away') { store.set('away', o.i); IDLE = 60000 * AWAY_MIN[o.i]; poke(); }
+    if (id === 'saver') store.set('saver', o.i);
+    if (id === 'secs') { store.set('secs', o.i); tick(); }
     if (id === 'lite') { setLite(o.i === 1); return; }
-    if (id === 'lime') { setLime(o.i === 1); return drawJump(id); }
+    if (id === 'theme') { setTheme(o.i); return drawJump(id); }
     drawJump(id);
   }
   function okJump(id) {
     const o = J[id];
-    if (id === 'about') { closeJump(); return toast('area', 'About', 'Home Deck v0.1', 'Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.', 15000); }
+    if (id === 'about') { closeJump(); return toast('area', 'About', `Home Deck v${VER}`, 'Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.', 15000); }
     if (id === 'order') { closeJump(); store.set('order', {}); renderApps(); arm(); return toast('job', 'Apps', 'Order reset', 'Each group is back in its usual order.'); }
     if (o.open) {
       closeJump();
@@ -1451,6 +1490,7 @@
   }
   function endMove(place) {
     const { el, box, app } = moving, fav = box.id === 'fav';
+    box.classList.remove('has-moving');
     moving = null;
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     if (place && fav) { favs = [...box.children].map(t => t.dataset.app != null ? +t.dataset.app : null); saveFavs(); }
@@ -1545,7 +1585,7 @@
     $('stTitle').textContent = STEP_T[step][0]; $('stText').textContent = STEP_T[step][1];
     $('stBack').hidden = step === 0; $('stNext').textContent = step === 3 ? 'Done' : 'Next';
     if (step === 0) $('stBody').innerHTML = `<div class="setup__grid">${APPS.map((_, i) => appTile(i, 'art--xs' + (favs.includes(i) ? ' is-picked' : ''), 'data-pick').replace('data-app=', 'data-pickapp=')).join('')}</div>`;
-    if (step === 1) $('stBody').innerHTML = `<div class="tiles">${ACCENTS.map((a, n) => `<div class="sw${n === J.acc.i ? ' is-picked' : ''}" data-sw="${n}" style="--sw:${a[1]}">${a[0]}</div>`).join('')}</div>`;
+    if (step === 1) $('stBody').innerHTML = `<div class="tiles">${ACCENTS.map((a, n) => `<div class="sw${n === J.acc.i ? ' is-picked' : ''}" data-sw="${n}" style="--sw:${swatch(n)}">${a[0]}</div>`).join('')}</div>`;
     if (step === 2) $('stBody').innerHTML = `<div style="display:grid;gap:12px">${PORTS.map(p => `<div class="nl hd-frame" data-nl="${p.id}"><span class="nl__port">HDMI ${p.n}</span><span class="nl__val">${p.arc ? 'Audio out (ARC) // a sound output, set in Inputs' : `<span>&lsaquo;</span>${esc(nameLabel(names[p.n - 1], p.n))}${NAMES[names[p.n - 1]] === 'Auto' ? ` // ${esc(portName(p))}` : ''}<span>&rsaquo;</span>`}</span></div>`).join('')}</div>`;
     if (step === 3) { $('stBody').innerHTML = '<div id="exSetup"></div>'; drawEx($('exSetup')); }
     setup.querySelectorAll('#stBody [data-pick], #stBody [data-sw], #stBody [data-nl], #stBody [data-ex], .setup__foot .hd-btn:not([hidden])').forEach(el => el.setAttribute('data-f', ''));
@@ -1883,7 +1923,7 @@
     if (el.id === 'sMic') return voice();
     if (d.res != null) return setTimeout(closeSearch, 50);
     if (d.pick != null) return pickFav(el);
-    if (d.sw != null) { J.acc.i = +d.sw; store.set('acc', J.acc.i); applyRows(); setup.querySelectorAll('.sw').forEach(s => s.classList.toggle('is-picked', s === el)); return; }
+    if (d.sw != null) { J.acc.i = +d.sw; store.set('accent', J.acc.i); applyRows(); setup.querySelectorAll('.sw').forEach(s => s.classList.toggle('is-picked', s === el)); return; }
     if (d.ex) return setTimeout(() => exOk(d.ex));
     if (d.pk) return setTimeout(() => { setIconPack(d.pk); closePackPicker(); });
     if (d.nl) {
@@ -1920,7 +1960,7 @@
     const d = new Date(), h = d.getHours();
     const hm = `${h % 12 || 12}:${two(d.getMinutes())}`, ap = h < 12 ? 'am' : 'pm';
     const date = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-    $('clkHM').textContent = hm; $('clkS').textContent = ':' + two(d.getSeconds()); $('clkAP').textContent = ap;
+    $('clkHM').textContent = hm; $('clkS').textContent = J.secs.i ? '' : ':' + two(d.getSeconds()); $('clkAP').textContent = ap;
     $('clkDate').textContent = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     if (d.getSeconds() % 30 === 0) drawWx();
     $('sbHM').textContent = hm; $('sbAP').textContent = ap; $('sbDate').textContent = date;
@@ -1940,8 +1980,18 @@
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     sleeping = true; spot(); standby.classList.add('on');
     driftTimer = setInterval(drift, 20000);
+    const view = SAVERS[J.saver.i][1];
+    if (view && !reduce) {                                     // a rainy city instead of the clock, full screen over everything
+      rain = document.createElement('iframe'); rain.className = 'standby__rain'; rain.setAttribute('aria-hidden', 'true');
+      rain.src = `rain/index.html?view=${view}${isLite() ? '&light' : ''}`;
+      standby.appendChild(rain); sbPos.hidden = true;
+    }
   }
-  function wake() { sleeping = false; clearInterval(driftTimer); standby.classList.remove('on'); showHints(); }
+  let rain = null;
+  const endRain = () => { if (rain) { rain.remove(); rain = null; } sbPos.hidden = false; };
+  // the rain tells us if this TV can't keep it smooth even when lighter: back to the clock for this time
+  addEventListener('message', e => { if (e.data && e.data.rain === 'too-slow' && rain && e.source === rain.contentWindow) endRain(); });
+  function wake() { sleeping = false; clearInterval(driftTimer); endRain(); standby.classList.remove('on'); showHints(); }
   const poke = () => { clearTimeout(idleTimer); idleTimer = setTimeout(sleep, IDLE); };
   poke();
 
@@ -2058,7 +2108,7 @@
     if (back) { stop(); if (!e.repeat && !escTimer) escTimer = setTimeout(() => { escTimer = null; openJump(); }, 480); return; }
     if (k === 'q' || k === 'e') { stop(); switchSection(sec + (k === 'q' ? -1 : 1), true); }
     else if (k === 'j' || k === '*' || k === 'ContextMenu') { stop(); openJump(); }
-    else if (k === 'h') { stop(); setLime(!isLime()); }
+    else if (k === 'h') { stop(); setTheme((J.theme.i + 1) % THEMES.length); }
     else if (k === 'l') { stop(); setLite(!isLite()); }
     else if (k === 'a') { stop(); incoming(); }
     else if (k === 's') { stop(); sleep(); }

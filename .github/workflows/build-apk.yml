@@ -3,6 +3,10 @@ name: Build Alpha Deck APKs
 on:
   push:
     branches: [test/all-combined]
+    # Docs-only pushes don't need a new APK build.
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
   workflow_dispatch:
 
 jobs:

@@ -180,4 +180,4 @@ Release APKs are built by GitHub Actions on this repo.
 
 ## License
 
-MIT, © 2026 Glidian. See [LICENSE](LICENSE). The CoreBuilds art is MIT, © 2026 Core Builds (see above).
+MIT, © 2026 Glidian (Home Deck) and © 2026 Alphaque (Alpha Deck changes). See [LICENSE](LICENSE). The CoreBuilds art is MIT, © 2026 Core Builds (see above).

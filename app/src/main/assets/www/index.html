@@ -79,7 +79,9 @@
   .brand__row { display: flex; align-items: center; gap: 18px; margin-top: 10px; }
   .brand__row .hd-barcode { width: 120px; height: 16px; }
   .mid { position: relative; height: 84px; align-self: end; }
-  .clock { display: grid; justify-items: end; gap: 4px; }
+  .clock { position: relative; display: grid; justify-items: start; gap: 4px; }
+  .clock__date { position: absolute; left: 0; top: 100%; font: 400 15px/1 var(--hd-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--hd-text-meta); white-space: nowrap; }   /* same as .net__ip / .wx__city; top set in alignClockHead */
+  .clock__head { position: absolute; left: 0; white-space: nowrap; font: 400 14px/1 var(--hd-font-mono); letter-spacing: .08em; color: var(--hd-chrome-dim); text-transform: uppercase; }   /* same as .wx__head / .net__head; top set in alignClockHead */
   .clock__time { color: var(--hd-act); font-size: 76px; }
   .clock__time .hd-num__frac { color: var(--hd-act-dim); }
   .clock__time .hd-num__unit { color: var(--hd-chrome); font-size: .34em; letter-spacing: .1em; }
@@ -487,7 +489,8 @@
     </div>
     <div class="clock">
       <span class="clock__time hd-num hd-num--split"><span class="hd-num__int" id="clkHM">0:00</span><span class="hd-num__frac" id="clkS">:00</span><span class="hd-num__unit" id="clkAP">am</span></span>
-      <span class="hd-label"><span style="color:var(--hd-chrome)">Local time //</span> <span class="hd-label--meta" id="clkDate"></span></span>
+      <span class="clock__head" id="clkHead">Local time</span>
+      <span class="clock__date" id="clkDate"></span>
     </div>
   </header>
   <hr class="hd-rule top-rule">
@@ -1701,6 +1704,20 @@
   }
   const deg = f => Math.round(WX.unit === 'C' ? (f - 32) * 5 / 9 : f);          // always fetched in Fahrenheit
   const ageText = t => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)}h ago`; };
+  // the cloud and the temperature digits each sit centred between the bottom of the header and the top of the condition line
+  const wxShift = { wxIco: 0, wxTemp: 0 };
+  function alignWx() {
+    const el = $('wx'); if (el.hidden || !el.offsetParent) return;
+    const head = el.querySelector('.wx__head'), cond = $('wxCond'); if (!head || !cond.textContent.trim()) return;
+    const k = el.getBoundingClientRect().height / el.offsetHeight || 1;
+    const gapMid = (baseline(head) + baseline(cond) - capH(cond) * k) / 2;
+    const ico = $('wxIco').getBoundingClientRect(), temp = $('wxTemp');
+    const mids = { wxIco: (ico.top + ico.bottom) / 2, wxTemp: baseline(temp) - capH(temp) * k / 2 };
+    for (const id in mids) {
+      const s = Math.round(wxShift[id] + (gapMid - mids[id]) / k);
+      if (s !== wxShift[id]) { wxShift[id] = s; $(id).style.transform = s ? `translateY(${s}px)` : ''; }
+    }
+  }
   function drawWx() {
     const el = $('wx'), c = WX.cache, show = WX.on && WX.city && c && c.city === WX.city.name;
     el.hidden = !show; $('top').classList.toggle('has-wx', !!show);
@@ -1710,7 +1727,7 @@
     $('wxIco').innerHTML = ICONS[ico];
     $('wxTemp').innerHTML = `${deg(c.temp)}&deg;<small>${WX.unit}</small>`;
     $('wxCond').textContent = `${word} // H ${deg(c.hi)}° L ${deg(c.lo)}°`;
-    $('wxCity').textContent = `${c.city} // ${stale ? 'last update ' : 'updated '}${ageText(c.t)}`;
+    $('wxCity').textContent = `${c.city} // ${stale ? 'last update ' : ''}${ageText(c.t)}`;
     el.classList.toggle('is-stale', stale);
   }
   async function wxFetch() {
@@ -1965,13 +1982,51 @@
   /* =====================================================================
      Clock, standby, boot, first run
      ===================================================================== */
+  // the Local time head sits level with the Link / Weather heads; with both hidden it sits just above the time
+  const baseline = el => {   // y of the text baseline: a zero-height inline-block sits on it
+    const m = document.createElement('span'); m.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+    el.appendChild(m); const y = m.getBoundingClientRect().top; m.remove(); return y;
+  };
+  const capCtx = document.createElement('canvas').getContext('2d');
+  // height of a digit's ink. Some TV WebViews reject a canvas font list (e.g. one with system-ui) and silently keep
+  // 10px sans-serif, so try the families one at a time and fall back to a fixed share of the font size.
+  const capH = el => {
+    const c = getComputedStyle(el), px = parseFloat(c.fontSize);
+    for (const fam of [c.fontFamily, ...c.fontFamily.split(',').map(f => f.trim())]) {
+      capCtx.font = '10px serif'; capCtx.font = `${c.fontWeight} ${c.fontSize} ${fam}`;
+      if (capCtx.font === '10px serif') continue;   // rejected
+      const h = capCtx.measureText('0').actualBoundingBoxAscent;
+      if (h > px * .4 && h < px) return h;
+    }
+    return px * .7;
+  };
+  let clockShift = 0;
+  function alignClockHead() {
+    const head = $('clkHead'), date = $('clkDate'), hm = $('clkHM'), clock = head.parentElement;
+    const shown = sel => [...document.querySelectorAll(sel)].find(e => e.offsetParent && e.textContent.trim() && getComputedStyle(e).visibility !== 'hidden');
+    const other = shown('.wx__head, .net__head'), foot = shown('.net__ip, .wx__city');
+    // the TV shrinks the whole 1920-wide stage with a transform: screen distances divide by k to become layout px
+    const k = clock.getBoundingClientRect().height / clock.offsetHeight || 1;
+    const place = () => {   // header and date baselines level with the Link / Weather header and the IP / city line
+      head.style.top = `${Math.round(other ? head.offsetTop + (baseline(other) - baseline(head)) / k : -head.offsetHeight - 6)}px`;
+      if (foot) date.style.top = `${Math.round(date.offsetTop + (baseline(foot) - baseline(date)) / k)}px`;
+    };
+    place();
+    if (!other || !foot) return;
+    // the hour:minute digits sit centred between the bottom of the header and the top of the date
+    const gapMid = (baseline(head) + baseline(date) - capH(date) * k) / 2, digitMid = baseline(hm) - capH(hm) * k / 2;
+    const shift = Math.round(clockShift + (gapMid - digitMid) / k);
+    if (shift !== clockShift) { clockShift = shift; clock.style.transform = shift ? `translateY(${shift}px)` : ''; place(); }
+  }
   function tick() {
     const d = new Date(), h = d.getHours();
     const hm = `${h % 12 || 12}:${two(d.getMinutes())}`, ap = h < 12 ? 'am' : 'pm';
     const date = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     $('clkHM').textContent = hm; $('clkS').textContent = J.secs.i ? '' : ':' + two(d.getSeconds()); $('clkAP').textContent = ap;
     $('clkDate').textContent = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    alignClockHead();
     if (d.getSeconds() % 30 === 0) drawWx();
+    alignWx();
     $('sbHM').textContent = hm; $('sbAP').textContent = ap; $('sbDate').textContent = date;
   }
   tick(); setInterval(tick, 1000);

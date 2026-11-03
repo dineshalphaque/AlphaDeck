@@ -16,6 +16,8 @@ import android.media.tv.TvInputInfo;
 import android.media.tv.TvInputManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
+import android.net.LinkAddress;
+import android.net.LinkProperties;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -31,6 +33,10 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -118,11 +124,34 @@ final class Bridge {
     public String network() {
         JSONObject o = new JSONObject();
         ConnectivityManager cm = context.getSystemService(ConnectivityManager.class);
-        NetworkCapabilities caps = cm != null ? cm.getNetworkCapabilities(cm.getActiveNetwork()) : null;
+        android.net.Network nw = cm != null ? cm.getActiveNetwork() : null;
+        NetworkCapabilities caps = nw != null ? cm.getNetworkCapabilities(nw) : null;
+        LinkProperties lp = nw != null ? cm.getLinkProperties(nw) : null;
+        String ip = null;
+        if (lp != null) {
+            for (LinkAddress la : lp.getLinkAddresses()) {
+                InetAddress addr = la.getAddress();
+                if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                    ip = addr.getHostAddress();
+                    break;
+                }
+            }
+        }
         if (caps == null) {
             put(o, "type", "none");
         } else if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
             put(o, "type", "ethernet");
+            String iface = lp != null ? lp.getInterfaceName() : null;
+            if (iface != null) {
+                try (BufferedReader br = new BufferedReader(new FileReader("/sys/class/net/" + iface + "/speed"))) {
+                    String s = br.readLine();   // Mbps; -1 or unreadable when the driver doesn't say
+                    if (s != null) {
+                        int speed = Integer.parseInt(s.trim());
+                        if (speed > 0) put(o, "mbps", speed);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
         } else if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
             put(o, "type", "wifi");
             WifiManager wm = context.getApplicationContext().getSystemService(WifiManager.class);
@@ -134,6 +163,7 @@ final class Bridge {
         } else {
             put(o, "type", "other");
         }
+        if (ip != null) put(o, "ip", ip);
         return o.toString();
     }
 

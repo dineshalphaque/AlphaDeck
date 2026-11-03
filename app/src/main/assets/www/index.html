@@ -71,7 +71,7 @@
 
   /* ---- top band: name, the now-playing radio (or remote hints for a moment), clock ---- */
   .top { position: absolute; left: 96px; right: 96px; top: 40px; height: 124px; display: flex; align-items: flex-end; gap: 28px; }
-  .top > .brand, .top > .clock, .top > .wx { flex: none; }
+  .top > .brand, .top > .clock, .top > .wx, .top > .net { flex: none; }
   .top > .mid { flex: 1; min-width: 0; }
   .top.has-wx .brand .hd-barcode, .top.has-wx .radio__time { display: none; }
   .top.has-wx .radio { grid-template-columns: auto 1fr auto auto; gap: 16px; }
@@ -362,6 +362,16 @@
   .wx__temp small { font-size: .45em; color: var(--hd-act-dim); margin-left: 2px; }
   .wx__cond { grid-column: 1 / -1; font-size: 18px; letter-spacing: var(--hd-tr-label); text-transform: uppercase; color: var(--hd-chrome); white-space: nowrap; }
   .wx__city { grid-column: 1 / -1; font: 400 15px/1 var(--hd-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--hd-text-meta); white-space: nowrap; }
+  /* Top-bar link status, next to the weather (or the clock when weather is off): Wi-Fi band // speed, or cable speed, then the IPv4 address */
+  .net { display: grid; grid-template-columns: auto auto; column-gap: 12px; row-gap: 3px; align-items: center; align-self: end; padding-bottom: 2px; }
+  .net[hidden] { display: none; }
+  .net__head { grid-column: 1 / -1; font: 400 14px/1 var(--hd-font-mono); letter-spacing: .08em; color: var(--hd-chrome-dim); text-transform: uppercase; }
+  .net__ico { grid-column: 1 / -1; width: 48px; height: 48px; color: var(--hd-act); }   /* same rows as .wx: head, icon, cond, city */
+  .net__ico svg { width: 100%; height: 100%; display: block; }
+  .net__line { grid-column: 1 / -1; font-size: 18px; letter-spacing: var(--hd-tr-label); text-transform: uppercase; color: var(--hd-chrome); white-space: nowrap; }
+  .net__ip { grid-column: 1 / -1; font: 400 15px/1 var(--hd-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--hd-text-meta); white-space: nowrap; }
+  .net.is-off .net__ico { color: var(--hd-chrome-dim); opacity: .6; }
+  .net.is-off .net__ip { visibility: hidden; }
 
   /* Online extras: everything is offline until switched on */
   .extras { z-index: 300; }
@@ -479,6 +489,11 @@
         <span class="hd-hint"><span class="hd-key hd-key--word">Back</span>Back</span>
         <span class="hd-hint"><span class="hd-key hd-key--word hd-key--hold">Back</span>Hold: Jump To</span>
       </div>
+    </div>
+    <div class="net" id="topNet" hidden aria-live="polite">
+      <span class="net__head">Link // network</span>
+      <span class="net__ico" id="netIco" aria-hidden="true"></span><span class="net__line" id="netLine"></span>
+      <span class="net__ip" id="netIp"></span>
     </div>
     <div class="wx" id="wx" hidden aria-live="polite">
       <span class="wx__head">Signal // weather feed</span>
@@ -875,7 +890,23 @@
     { id: 'set', name: 'Settings', file: 'settings', glow: '#5ef6ff', desc: 'Picture, sound, setup and the rest.', next: ['Open', 'Jump To and setup'] },
   ];
 
+  const NET_ICO = {
+    wifi: '<path d="M2 9a15 15 0 0 1 20 0"/><path d="M5.5 12.5a10 10 0 0 1 13 0"/><path d="M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/>',
+    ethernet: '<rect x="4" y="5" width="16" height="12" rx="1"/><path d="M8 17v3h8v-3"/><path d="M8 9v3M11 9v3M14 9v3M17 9v3"/>',
+  };
+  function topNet(n) {   // the top-bar block; offline = the last-known kind of icon, struck through
+    const off = !n || n.type === 'none', kind = n && n.type === 'ethernet' ? 'ethernet' : 'wifi';
+    $('topNet').classList.toggle('is-off', off);
+    $('netIco').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
+      + NET_ICO[kind] + (off ? '<path d="M3 3l18 18" stroke-width="2"/>' : '') + '</svg>';
+    $('netLine').textContent = off ? 'Offline'
+      : n.type === 'wifi' ? [n.mhz ? `${n.mhz > 4900 ? '5' : '2.4'} GHz` : '', n.mbps > 0 ? `${n.mbps} Mbps` : ''].filter(Boolean).join(' // ') || 'Wi-Fi'
+      : n.type === 'ethernet' ? (n.mbps > 0 ? `${n.mbps} Mbps` : 'Ethernet') : 'Online';
+    $('netIp').textContent = off ? '\u00a0' : n.ip || '\u00a0';   // keep the row so the lines stay level with the weather
+    $('topNet').hidden = false;
+  }
   function applyNet(n) {
+    topNet(n);
     const net = SYS.find(s => s.id === 'net');
     net.desc = n.type === 'wifi' ? 'Connected over Wi-Fi.' : n.type === 'ethernet' ? 'Connected by cable.' : n.type === 'none' ? 'Not connected.' : 'Connected.';
     net.next = n.type === 'none' ? ['Offline', 'OK opens network settings']
@@ -883,6 +914,7 @@
       : ['Online', n.type === 'ethernet' ? 'Ethernet' : 'Network'];
   }
   if (NATIVE) applyNet(NATIVE.network());
+  else topNet({ type: 'wifi', mhz: 5180, mbps: 433, ip: '192.168.1.42' });   // browser preview
   // ---- "Jump back in": the apps used most recently, a list the launcher keeps itself (a sideloaded launcher can't read
   //      other apps' Watch Next rows, so no shows or episodes). A playing app shows what is playing, as Android's media
   //      sessions report it. Minutes since each app was last opened, for the preview:

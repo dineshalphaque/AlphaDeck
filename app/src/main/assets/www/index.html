@@ -875,13 +875,14 @@
     { id: 'set', name: 'Settings', file: 'settings', glow: '#5ef6ff', desc: 'Picture, sound, setup and the rest.', next: ['Open', 'Jump To and setup'] },
   ];
 
-  if (NATIVE) {
-    const n = NATIVE.network(), net = SYS.find(s => s.id === 'net');
+  function applyNet(n) {
+    const net = SYS.find(s => s.id === 'net');
     net.desc = n.type === 'wifi' ? 'Connected over Wi-Fi.' : n.type === 'ethernet' ? 'Connected by cable.' : n.type === 'none' ? 'Not connected.' : 'Connected.';
     net.next = n.type === 'none' ? ['Offline', 'OK opens network settings']
       : n.type === 'wifi' ? ['Online', `Wi-Fi${n.mhz ? ` // ${n.mhz > 4900 ? '5' : '2.4'} GHz` : ''}${n.mbps > 0 ? ` // ${n.mbps} Mbps link` : ''}`]
       : ['Online', n.type === 'ethernet' ? 'Ethernet' : 'Network'];
   }
+  if (NATIVE) applyNet(NATIVE.network());
   // ---- "Jump back in": the apps used most recently, a list the launcher keeps itself (a sideloaded launcher can't read
   //      other apps' Watch Next rows, so no shows or episodes). A playing app shows what is playing, as Android's media
   //      sessions report it. Minutes since each app was last opened, for the preview:
@@ -1913,6 +1914,10 @@
     if (text !== radioText) { radioText = text; requestAnimationFrame(scrollRadio); }
   }
   drawRadio();
+  if (NATIVE) NATIVE.on('net', n => {   // Wi-Fi <-> Ethernet while the home screen is open
+    applyNet(n || { type: 'none' });
+    if (cur && cur.dataset.sys === 'net') show(infoFor(cur));
+  });
   if (NATIVE) NATIVE.on('now', np => {
     const i = np.pkg ? APPS.findIndex(a => a.pkg === np.pkg) : -1;
     Object.assign(NOW, np.title ? { app: i, label: np.label, station: np.album && np.album !== np.title && np.album !== np.label ? np.album : '', track: np.title, artist: np.artist,

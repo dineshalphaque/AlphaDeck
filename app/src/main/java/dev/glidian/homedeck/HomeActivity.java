@@ -8,6 +8,9 @@ import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.media.tv.TvInputManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -234,6 +237,22 @@ public class HomeActivity extends Activity {
         }
     };
 
+    /** Wi-Fi <-> Ethernet, or the link dropping, while the home screen is open. Capabilities change often; send only real changes. */
+    private String lastNet;
+    private boolean netWatching;
+    private void netChanged() {
+        String n = bridge.network();
+        if (n.equals(lastNet)) return;
+        lastNet = n;
+        emit("net", n);
+    }
+
+    private final ConnectivityManager.NetworkCallback netWatch = new ConnectivityManager.NetworkCallback() {
+        @Override public void onAvailable(Network network) { netChanged(); }
+        @Override public void onLost(Network network) { netChanged(); }
+        @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities caps) { netChanged(); }
+    };
+
     private final Runnable sendInputs = () -> emit("inputs", bridge.inputs());
 
     /** HDMI-CEC devices tend to announce themselves in a burst; wait for it to settle. */
@@ -286,12 +305,18 @@ public class HomeActivity extends Activity {
         }
         bridge.musicAccess = nowPlaying.start();
         if (tvInputs != null) tvInputs.registerCallback(inputWatch, handler);
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        if (cm != null && !netWatching) {
+            try { cm.registerDefaultNetworkCallback(netWatch, handler); netWatching = true; } catch (RuntimeException e) { Log.w(TAG, "network watch", e); }
+        }
         if (appsChanged) {
             reload();
         } else {
             emit("resume", null);
             emit("now", bridge.nowPlaying());
             inputsSoon();
+            lastNet = null;
+            netChanged();
         }
     }
 
@@ -300,6 +325,10 @@ public class HomeActivity extends Activity {
         resumed = showing = false;
         nowPlaying.stop();
         if (tvInputs != null) tvInputs.unregisterCallback(inputWatch);
+        if (netWatching) {
+            netWatching = false;
+            try { getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netWatch); } catch (RuntimeException e) { Log.w(TAG, "network watch", e); }
+        }
         if (web != null) {
             web.onPause();
             web.pauseTimers();

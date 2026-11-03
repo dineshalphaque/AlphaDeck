@@ -191,6 +191,11 @@ final class Bridge {
         } catch (java.io.IOException ignored) {
             // no art folder: every app gets its badge
         }
+        try {
+            String[] files = context.getAssets().list(ART + "/original");
+            if (files != null) for (String f : files) out.put("original/" + f);
+        } catch (java.io.IOException ignored) {
+        }
         return out.toString();
     }
 

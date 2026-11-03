@@ -621,6 +621,17 @@
       </div>
     </div>
   </div>
+  <div class="scrim extras" id="packs" hidden>
+    <div class="hd-panel hd-panel--spine-act ovl ex__box">
+      <div class="hd-panel__head">IconPack <span data-hd-code data-kind="serial" data-mask="IP-000" data-seed="packs"></span></div>
+      <p class="ex__lead">Pick the icons the home screen shows for your apps.</p>
+      <div id="pkList"></div>
+      <div class="jump__foot">
+        <span class="hd-hint"><span class="hd-key hd-key--word">OK</span>Pick</span>
+        <span class="hd-hint"><span class="hd-key hd-key--word">Back</span>Close</span>
+      </div>
+    </div>
+  </div>
 
   <div class="scrim kbd" id="kbd" hidden>
     <div class="hd-panel hd-panel--spine-act ovl kbd__box">
@@ -723,6 +734,30 @@
     ['iHeartRadio', 'iheartradio', '#C6002B', 'Radio', 'Live radio stations and podcasts.'],
     ['Downloader', 'downloader', '#F57C00', 'Tool', 'Gets files and apps onto the TV.'],
   ];
+  // tile art for apps found only on the TV (not in the browser preview): name, icon file, brand color, kind
+  const TVART = [
+    ['ADB AppControl', 'adbappcontrol', '#3AD37F', 'Tool'],
+    ['Aerial Views', 'aerialviews', '#31DF74', 'Tool'],
+    ['Core Builds', 'corebuilds', '#00C7ED', 'Tool'],
+    ['CX File Explorer', 'cxinventor', '#00CAF1', 'Tool'],
+    ['Developer Tools', 'developer-tools', '#B955E8', 'Tool'],
+    ['AIDA64', 'finalwire', '#EDA61F', 'Tool'],
+    ['NordVPN', 'nordvpn', '#417EEB', 'Tool'],
+    ['Nuvio TV', 'nuvio', '#5F77D7', 'Streaming'],
+    ['Projectivy Launcher', 'projectivy', '#00B4CB', 'Tool'],
+    ['Projectivy Blueprint', 'projectivy-blueprint', '#00D7ED', 'Tool'],
+    ['PCAPdroid', 'remote-capture', '#9964C8', 'Tool'],
+    ['Send Files to TV', 'sendfilestotv', '#2671EC', 'Tool'],
+    ['SmartTube Next', 'smarttubenext', '#ED0000', 'Video'],
+    ['TvOverlay', 'tvoverlay', '#00BE7D', 'Tool'],
+    ['TiviMate', 'tvplayer', '#8FB7EF', 'Live TV'],
+    ['TV Quick Actions', 'tvquickactions', '#B955E8', 'Tool'],
+    ['TV Bro', 'tvwebbrowser', '#58A0EA', 'Tool'],
+    ['Vimu Player', 'vimu', '#E18837', 'Player'],
+    ['AirPlay', 'airplay', '#E6E6E6', 'Tool'],
+    ['Settings', 'settings', '#5EF6FF', 'Tool'],
+    ['Live TV', 'live-tv', '#FFB21E', 'Live TV'],
+  ];
   // the Apps tab, grouped by kind so 46 apps stay calm from the sofa
   const GROUPS = [
     ['Streaming', ['Netflix', 'Prime Video', 'HBO Max', 'Disney+', 'Hulu', 'Peacock', 'Apple TV', 'Paramount+', 'Discovery+', 'Starz', 'MGM+']],
@@ -735,21 +770,33 @@
     ['Tools and more', ['Play Store', 'Downloader', 'Lumen Fitness']],
   ];
   APPS.length = 0;
-  LIST.forEach(([name, file, glow, kind]) => APPS.push({ name, file, glow, kind, bg: '#0b0b10', fg: glow }));
-  SET3.forEach(([name, file, glow, kind, line]) => APPS.push({ name, file, glow, kind, line, bg: '#0b0b10', fg: glow }));
-  EXTRA.forEach(([name, kind]) => APPS.push({ name, kind, file: null, plain: PLAIN[name] ? 'data:image/svg+xml,' + encodeURIComponent(PLAIN[name]) : null, glow: '#8f8889', bg: '#0b0b10', fg: '#fff' }));
+  // a.art keyed by pack
+  LIST.forEach(([name, file, glow, kind]) => APPS.push({ name, kind, bg: '#0b0b10', fg: glow, glow, art: { default: {file:null, plain:null, glow}, original: {file:'original/'+file, plain:null, glow}, corebuilds: {file, plain:null, glow} } }));
+  SET3.forEach(([name, file, glow, kind, line]) => APPS.push({ name, kind, line, bg: '#0b0b10', fg: glow, glow, art: { default: {file:null, plain:null, glow}, original: {file:'original/'+file, plain:null, glow}, corebuilds: {file, plain:null, glow} } }));
+  EXTRA.forEach(([name, kind]) => { const svg = PLAIN[name] ? 'data:image/svg+xml,' + encodeURIComponent(PLAIN[name]) : null; APPS.push({ name, kind, bg: '#0b0b10', fg: '#fff', glow: '#8f8889', art: { default: {file:null, plain:svg, glow:'#8f8889'}, original: {file:null, plain:svg, glow:'#8f8889'}, corebuilds: {file:null, plain:svg, glow:'#8f8889'} } }); });
   if (NATIVE) {
     const art = new Map([...LIST.map(([name, file, glow, kind]) => [name, { file, glow, kind }]),
-                         ...SET3.map(([name, file, glow, kind, line]) => [name, { file, glow, kind, line }])]);
+                         ...SET3.map(([name, file, glow, kind, line]) => [name, { file, glow, kind, line }]),
+                         ...TVART.map(([name, file, glow, kind]) => [name, { file, glow, kind }])]);
     const names = [...art.keys()];
     APPS.length = 0;
     NATIVE.apps().forEach(a => {
       // a known app keeps its name, kind and line; without its tile art it shows its own icon in a badge
       const name = NATIVE.artName(a.pkg, a.label, names), m = name && art.get(name), has = m && NATIVE.hasArt(m.file);
-      APPS.push(m ? { name, ...m, file: has ? m.file : null, plain: has ? null : a.icon, pkg: a.pkg, system: a.system, bg: '#0b0b10', fg: m.glow }
-        : { name: a.label, kind: a.kind, file: null, plain: a.icon, glow: '#8f8889', pkg: a.pkg, system: a.system, bg: '#0b0b10', fg: '#fff' });
+      APPS.push(m ? { name, ...m, pkg: a.pkg, system: a.system, bg: '#0b0b10', fg: m.glow, glow: m.glow, art: { default: {file:null, plain:a.icon, glow:m.glow}, corebuilds: {file:has?m.file:null, plain:has?null:a.icon, glow:m.glow}, original: NATIVE.hasArt('original/'+m.file)?{file:'original/'+m.file,plain:null,glow:m.glow}:{file:null,plain:a.icon,glow:m.glow} } }
+        : { name: a.label, kind: a.kind, pkg: a.pkg, system: a.system, bg: '#0b0b10', fg: '#fff', glow: '#8f8889', art: { default: {file:null, plain:a.icon, glow:'#8f8889'}, original: {file:null, plain:a.icon, glow:'#8f8889'}, corebuilds: {file:null, plain:a.icon, glow:'#8f8889'} } });
     });
   }
+  // icon packs: the single switch between each app's own system icon and a bundled pack's art; add packs here
+  const ICON_PACKS = [{id:'default',label:'Default Icons',desc:'Each app keeps its own icon from the TV.'},{id:'original',label:'Original',desc:'The icons and banners Home Deck shipped with.'},{id:'corebuilds',label:'Corebuilds Icons',desc:'Icons and banners from the CoreBuilds pack.'}];
+  let iconPack = ICON_PACKS.some(p => p.id === store.get('iconpack', 'default')) ? store.get('iconpack', 'default') : 'default';
+  let badgeRun = 0;
+  function applyIconPack() {
+    APPS.forEach(a => {
+      const p = a.art[iconPack] || a.art.default; a.file = p.file; a.plain = p.plain; delete a.bgImg;
+    });
+  }
+  applyIconPack();
   const DESC = {
     Streaming: 'Films and series on demand.', Video: 'Videos, channels and your subscriptions.', Anime: 'Anime, the same day as Japan.',
     Music: 'Music, playlists and podcasts.', Games: 'Games on the big screen.', Store: 'Get more apps for this TV.',
@@ -938,14 +985,18 @@
   renderAll();
   HD.init(stage);
 
-  // finish the badge apps once their colors and art are known (fonts first, for the initials art)
-  const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
-  Promise.all(APPS.map(async a => {
-    if (a.file) return;
-    if (a.plain) { a.glow = await mainColor(a.plain); a.bgImg = a.plain; }
-    else { a.glow = hashCol(a.name); await fontsReady; a.bgImg = initialsArt(initials(a.name), a.glow); }
-    a.fg = a.glow;
-  })).then(() => { const f = cur; renderFavs(); renderApps(); arm(); refocus(f); });
+  function finishBadges() {
+    // finish the badge apps once their colors and art are known (fonts first, for the initials art); a newer run drops this one
+    const run = ++badgeRun;
+    const fontsReady = document.fonts ? document.fonts.ready : Promise.resolve();
+    return Promise.all(APPS.map(async a => {
+      if (a.file) { const p = a.art[iconPack] || a.art.default; a.glow = p.glow; a.fg = p.glow; return; }
+      if (a.plain) { const g = await mainColor(a.plain); if (run !== badgeRun) return; a.glow = g; a.bgImg = a.plain; }
+      else { const g = hashCol(a.name); await fontsReady; if (run !== badgeRun) return; a.glow = g; a.bgImg = initialsArt(initials(a.name), g); }
+      a.fg = a.glow;
+    })).then(() => { if (run !== badgeRun) return; const f = cur; renderFavs(); renderApps(); arm(); refocus(f); });
+  }
+  finishBadges();
 
   /* =====================================================================
      The takeover
@@ -1199,6 +1250,7 @@
     secs:  { name: 'Clock seconds', vals: ['On', 'Off'], i: store.get('secs', 0) === 1 ? 1 : 0 },
     lean:  { name: 'Row tilt', vals: ['Classic', 'Pinned left', 'Subtle', 'Off'], i: [0, 1, 2, 3].includes(store.get('lean', 0)) ? store.get('lean', 0) : 0 },
     lite:  { name: 'Lite mode', vals: ['Off', 'On'], i: 0 },
+    iconpack: { name: 'IconPack', vals: ['Open'], i: 0, action: openPackPicker },
     ext:   { name: 'Online extras', vals: ['Open'], i: 0 },
     setup: { name: 'Setup', vals: ['Run again'], i: 0 },
   };
@@ -1250,6 +1302,7 @@
     untrap(beforeJump);
   }
   function stepJump(id, d) {
+    if (J[id]?.action) return;
     const o = J[id]; o.i = (o.i + d + o.vals.length) % o.vals.length;
     if (id === 'row1' || id === 'row2') { store.set(id + 'n', o.i); applyRows(); }
     if (id === 'acc') { store.set('accent', o.i); applyRows(); }
@@ -1273,6 +1326,7 @@
     }
     if ((id === 'row1' || id === 'row2') && o.vals[o.i] === 'Custom…')
       return openKbd(`${o.name} // custom`, o.custom, t => { o.custom = t; store.set(id + 'c', t); applyRows(); drawJump(id); });
+    if (o.action) { closeJump(); return setTimeout(o.action); }
     if (id === 'setup') { closeJump(); return setTimeout(openSetup); }
     if (id === 'ext') { closeJump(); return setTimeout(openExtras); }
     if (id === 'inp') {
@@ -1733,6 +1787,29 @@
     if (!extrasOpen) return;
     extrasOpen = false; extras.hidden = true; exList.innerHTML = ''; untrap(beforeExtras);
   }
+  // the IconPack picker: same popup, rows and focus as Online extras; OK picks, Back closes, both return to the settings menu
+  const packs = $('packs'), pkList = $('pkList');
+  let packsOpen = false;
+  function drawPacks() {
+    pkList.innerHTML = ICON_PACKS.map(p => `<div class="exl hd-frame" data-pk="${p.id}" data-f>
+      <span class="exl__name">${esc(p.label)}</span><span class="exl__val">${p.id === iconPack ? 'Current' : ''}</span>
+      <span class="exl__desc">${p.desc}</span></div>`).join('');
+  }
+  function openPackPicker() {
+    if (packsOpen || trapped) return;
+    packsOpen = true; trap(packs);
+    packs.hidden = false; drawPacks();
+    TV.focus(pkList.querySelector(`[data-pk="${iconPack}"]`) || pkList.querySelector('[data-f]'));
+  }
+  function closePackPicker() {
+    if (!packsOpen) return;
+    packsOpen = false; packs.hidden = true; pkList.innerHTML = ''; untrap(null);
+    setTimeout(() => { openJump(); const r = jList.querySelector('[data-jl="iconpack"]'); if (r) { cur = null; TV.focus(r); } });
+  }
+  function setIconPack(id) {
+    iconPack = id; store.set('iconpack', id);
+    applyIconPack(); renderAll(); arm(); finishBadges();
+  }
   drawWx();
 
   /* =====================================================================
@@ -1857,6 +1934,7 @@
     if (d.pick != null) return pickFav(el);
     if (d.sw != null) { J.acc.i = +d.sw; store.set('accent', J.acc.i); applyRows(); setup.querySelectorAll('.sw').forEach(s => s.classList.toggle('is-picked', s === el)); return; }
     if (d.ex) return setTimeout(() => exOk(d.ex));
+    if (d.pk) return setTimeout(() => { setIconPack(d.pk); closePackPicker(); });
     if (d.nl) {
       const p = PORTS.find(x => x.id === d.nl);
       if (p.arc) return toast('area', `HDMI ${p.n}`, 'Audio out (ARC)', 'A sound output, not an input. Change it in Inputs.');
@@ -2001,6 +2079,14 @@
       else if ((k === 'ArrowLeft' || k === 'ArrowRight') && items[i]) { stop(); exStep(items[i].dataset.ex, k === 'ArrowLeft' ? -1 : 1); }
       else if (back) { stop(); closeExtras(); }
       else if (k === 'Enter' && e.repeat) stop();
+      return;
+    }
+    if (packsOpen) {
+      const items = [...pkList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
+      if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
+      else if (back) { stop(); closePackPicker(); }
+      else if (k === 'Enter' && e.repeat) stop();
+      else if (k.startsWith('Arrow')) stop();
       return;
     }
     if (jumpOpen) {

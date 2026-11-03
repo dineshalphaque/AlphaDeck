@@ -18,9 +18,11 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -33,6 +35,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayDeque;
 import java.util.Locale;
 
 /**
@@ -54,6 +57,8 @@ public class HomeActivity extends Activity {
     private NowPlaying nowPlaying;
     private TvInputManager tvInputs;
     private boolean resumed, pageReady, appsChanged;
+    /** When the page's renderer last died, to stop recreating it if it keeps dying. */
+    private final ArrayDeque<Long> rendererDeaths = new ArrayDeque<>();
 
     @Override
     protected void onCreate(Bundle state) {
@@ -70,27 +75,7 @@ public class HomeActivity extends Activity {
         bridge = new Bridge(this, nowPlaying);
         tvInputs = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
 
-        web = new WebView(this);
-        web.setBackgroundColor(Color.BLACK);
-        web.setFocusable(true);
-        web.setFocusableInTouchMode(true);
-        WebSettings s = web.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setAllowFileAccess(false);
-        s.setAllowContentAccess(false);
-        s.setSupportZoom(false);
-        s.setTextZoom(100);
-        web.addJavascriptInterface(bridge, "HomeBridge");
-        web.setWebViewClient(new Assets());
-        web.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public boolean onConsoleMessage(ConsoleMessage m) {
-                Log.i(TAG, m.message() + " (" + m.sourceId() + ":" + m.lineNumber() + ")");
-                return true;
-            }
-        });
+        web = buildWebView();
         setContentView(web);
         web.loadUrl(START);
         web.requestFocus();
@@ -100,7 +85,33 @@ public class HomeActivity extends Activity {
         pkgs.addAction(Intent.ACTION_PACKAGE_REMOVED);
         pkgs.addAction(Intent.ACTION_PACKAGE_CHANGED);
         pkgs.addDataScheme("package");
+        appsSig = launchableSig();
         registerReceiver(packagesChanged, pkgs);
+    }
+
+    private WebView buildWebView() {
+        WebView w = new WebView(this);
+        w.setBackgroundColor(Color.BLACK);
+        w.setFocusable(true);
+        w.setFocusableInTouchMode(true);
+        WebSettings s = w.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
+        s.setSupportZoom(false);
+        s.setTextZoom(100);
+        w.addJavascriptInterface(bridge, "HomeBridge");
+        w.setWebViewClient(new Assets());
+        w.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage m) {
+                Log.i(TAG, m.message() + " (" + m.sourceId() + ":" + m.lineNumber() + ")");
+                return true;
+            }
+        });
+        return w;
     }
 
     /** Serves the page's files and the apps' icons. Anything else (the weather service) goes to the network. */
@@ -125,6 +136,31 @@ public class HomeActivity extends Activity {
         public void onPageFinished(WebView view, String url) {
             pageReady = true;
             emit("now", bridge.nowPlaying());
+        }
+
+        @Override
+        public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+            // the renderer was killed (low memory) or crashed; without this the whole launcher goes down with it
+            Log.w(TAG, "WebView renderer gone, crashed=" + detail.didCrash());
+            if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
+            view.destroy();
+            if (view != web) return true;               // a view already replaced; nothing more to do
+            web = null;
+            pageReady = false;
+            long now = System.currentTimeMillis();
+            rendererDeaths.addLast(now);
+            while (now - rendererDeaths.peekFirst() > 60_000) rendererDeaths.removeFirst();
+            if (rendererDeaths.size() > 3) {            // dying in a loop: give up rather than spin, Android restarts the launcher
+                Log.e(TAG, "WebView renderer died " + rendererDeaths.size() + " times in a minute, closing");
+                finish();
+                return true;
+            }
+            web = buildWebView();
+            setContentView(web);
+            if (!resumed) web.onPause();                // match the activity's state; timers are shared and already right
+            web.loadUrl(START);
+            web.requestFocus();
+            return true;
         }
     }
 
@@ -170,9 +206,11 @@ public class HomeActivity extends Activity {
 
     /** Tells the page something changed: window.__native(type, data). */
     private void emit(String type, String json) {
-        if (!pageReady) return;
-        handler.post(() -> web.evaluateJavascript("window.__native&&window.__native(" + JSONObject.quote(type) + ","
-                + (json != null ? json : "null") + ")", null));
+        if (!pageReady || web == null) return;
+        handler.post(() -> {
+            if (web != null) web.evaluateJavascript("window.__native&&window.__native(" + JSONObject.quote(type) + ","
+                    + (json != null ? json : "null") + ")", null);
+        });
     }
 
     // ---------------------------------------------------------------- what changes while the home screen is open
@@ -223,26 +261,48 @@ public class HomeActivity extends Activity {
         handler.postDelayed(sendInputs, 400);
     }
 
+    /** Package broadcasts come in bursts, and most (a system app toggling its own components after boot) don't change
+     *  what the home screen shows. Wait for the burst to settle, then reload only if the launchable apps really changed. */
+    private String appsSig;
+    private String launchableSig() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (android.content.pm.ResolveInfo r : getPackageManager().queryIntentActivities(
+                new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER), 0)) {
+            out.add(r.activityInfo.packageName + "/" + r.activityInfo.name + "@" + r.activityInfo.applicationInfo.sourceDir);
+        }
+        java.util.Collections.sort(out);
+        return String.join("\n", out);
+    }
+    private final Runnable packagesSettled = () -> {
+        String now = launchableSig();
+        if (now.equals(appsSig)) return;
+        appsSig = now;
+        if (resumed) reload();
+        else appsChanged = true;
+    };
+
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent i) {
-            if (resumed) reload();
-            else appsChanged = true;
+            handler.removeCallbacks(packagesSettled);
+            handler.postDelayed(packagesSettled, 2000);
         }
     };
 
     private void reload() {
         appsChanged = false;
         pageReady = false;
-        web.reload();
+        if (web != null) web.reload();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         resumed = showing = true;
-        web.onResume();
-        web.resumeTimers();
+        if (web != null) {
+            web.onResume();
+            web.resumeTimers();
+        }
         bridge.musicAccess = nowPlaying.start();
         if (tvInputs != null) tvInputs.registerCallback(inputWatch, handler);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
@@ -269,8 +329,10 @@ public class HomeActivity extends Activity {
             netWatching = false;
             try { getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netWatch); } catch (RuntimeException e) { Log.w(TAG, "network watch", e); }
         }
-        web.onPause();
-        web.pauseTimers();
+        if (web != null) {
+            web.onPause();
+            web.pauseTimers();
+        }
         super.onPause();
     }
 
@@ -282,8 +344,9 @@ public class HomeActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        handler.removeCallbacks(packagesSettled);
         unregisterReceiver(packagesChanged);
-        web.destroy();
+        if (web != null) web.destroy();
         super.onDestroy();
     }
 
@@ -318,9 +381,11 @@ public class HomeActivity extends Activity {
         if (key == null) return super.dispatchKeyEvent(e);
         if (e.getAction() == KeyEvent.ACTION_DOWN || e.getAction() == KeyEvent.ACTION_UP) {
             String type = e.getAction() == KeyEvent.ACTION_DOWN ? "keydown" : "keyup";
-            // sent to the focused element, as a real key is, so it reaches the page's listeners only once
-            web.evaluateJavascript("(document.activeElement||document.body).dispatchEvent(new KeyboardEvent('" + type + "',{key:'" + key
-                    + "',repeat:" + (e.getRepeatCount() > 0) + ",bubbles:true,cancelable:true}))", null);
+            if (web != null) {
+                // sent to the focused element, as a real key is, so it reaches the page's listeners only once
+                web.evaluateJavascript("(document.activeElement||document.body).dispatchEvent(new KeyboardEvent('" + type + "',{key:'" + key
+                        + "',repeat:" + (e.getRepeatCount() > 0) + ",bubbles:true,cancelable:true}))", null);
+            }
         }
         return true;
     }

@@ -1,0 +1,53 @@
+name: Build Alpha Deck APKs
+
+on:
+  push:
+    branches: [test/all-combined]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # Put the shared debug keystore where Gradle looks for it, so the debug
+      # build is signed with the same key as the APKs already on the TV.
+      - name: Restore signing key
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d > ~/.android/debug.keystore
+
+      - name: Build release and debug
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease assembleDebug --no-daemon
+
+      - name: Sign release, collect APKs
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          VC=$(grep -oP 'versionCode \K[0-9]+' app/build.gradle)
+          mkdir out
+          "$BT/zipalign" -f -p 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/al.apk"
+          "$BT/apksigner" sign --ks ~/.android/debug.keystore \
+            --ks-pass env:KS_PASS --ks-key-alias "$KS_ALIAS" \
+            --out "out/alpha-deck-build$VC-release.apk" "$RUNNER_TEMP/al.apk"
+          # Gradle may sign debug with the runner's own key, so re-sign it with ours.
+          "$BT/apksigner" sign --ks ~/.android/debug.keystore \
+            --ks-pass env:KS_PASS --ks-key-alias "$KS_ALIAS" \
+            --out "out/alpha-deck-build$VC-debug.apk" app/build/outputs/apk/debug/app-debug.apk
+          for f in out/*.apk; do echo "$f"; "$BT/apksigner" verify --print-certs "$f" | grep SHA-256; done
+        env:
+          KS_PASS: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-deck-${{ github.sha }}
+          path: out/*.apk

@@ -1,6 +1,6 @@
 # Alpha Deck
 
-A neon home screen for Google TV and Android TV, based on [Home Deck](https://github.com/glidiandev/home-deck) by
+A lightweight launcher and home screen for Google TV and Android TV, based on [Home Deck](https://github.com/glidiandev/home-deck) by
 Glidian. Your apps as big glowing tiles, the art of whatever you're on filling the background, a music bar that shows
 what's playing, and your HDMI inputs named after the devices on them. No ads, no recommendation rows, and it works
 offline.

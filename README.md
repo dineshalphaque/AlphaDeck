@@ -175,9 +175,11 @@ Release APKs are built by GitHub Actions on this repo.
 - CoreBuilds icon and banner art from [Core Builds](https://github.com/brevityA/CoreBuildsApps), MIT,
   © 2026 Core Builds. Its license is in [`app/src/main/assets/www/icons/LICENSE-CoreBuilds`](app/src/main/assets/www/icons/LICENSE-CoreBuilds).
   App names and logos belong to their owners; Core Builds' MIT license grants no trademark rights.
+- Third-party brand artwork isn't covered by MIT. Core Builds records its source-vector exceptions in its
+  [THIRD_PARTY_NOTICES.md](https://github.com/brevityA/CoreBuildsApps/blob/main/THIRD_PARTY_NOTICES.md).
 - Fonts under the SIL Open Font License: Michroma, Rajdhani, Saira and Share Tech Mono.
 - Weather from [Open-Meteo](https://open-meteo.com).
 
 ## License
 
-MIT, © 2026 Glidian (Home Deck) and © 2026 Alphaque (Alpha Deck changes). See [LICENSE](LICENSE). The CoreBuilds art is MIT, © 2026 Core Builds (see above).
+MIT, © 2026 Glidian (Home Deck) and © 2026 Alphaque (Alpha Deck changes). See [LICENSE](LICENSE) and [NOTICE](NOTICE); both ship inside the APK. CoreBuilds art is MIT, © 2026 Core Builds ([LICENSE-CoreBuilds](app/src/main/assets/www/icons/LICENSE-CoreBuilds)); that license grants no trademark rights and doesn't imply endorsement. Fonts (Michroma, Rajdhani, Saira and Share Tech Mono) are under the SIL OFL 1.1, with each license beside its font. Share Tech Mono's Reserved Font Name is "Share".

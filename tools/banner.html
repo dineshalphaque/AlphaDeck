@@ -2,23 +2,25 @@
 <html>
 <head>
 <meta charset="utf-8">
-<!-- The launcher banner (320x180). Rendered at 2x to app/src/main/res/drawable-xhdpi/banner.png with headless Chrome:
+<!-- The launcher banner (320x180). Alpha Deck, Lime theme colors from kit/tokens.css [data-hd-mode=lime].
+     Rendered at 2x to app/src/main/res/drawable-xhdpi/banner.png with headless Chrome:
      chrome --headless=new --force-device-scale-factor=2 --window-size=320,180 --screenshot=banner.png banner.html -->
 <style>
   @font-face { font-family: Michroma; src: url(../app/src/main/assets/www/kit/fonts/michroma-400-latin.woff2); }
   @font-face { font-family: Rajdhani; font-weight: 600; src: url(../app/src/main/assets/www/kit/fonts/rajdhani-600-latin.woff2); }
   html, body { margin: 0; background: #000; }
-  .b { position: relative; width: 320px; height: 180px; overflow: hidden; background: #07090f; }
-  .b::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 62%, rgba(255, 90, 82, .12) 62% 65%, transparent 65%); }
-  .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: #ff5a52; }
-  .t { position: absolute; left: 30px; top: 38px; font: 40px/1.05 Michroma, sans-serif; color: #e4fcf2; letter-spacing: 1px;
-       text-shadow: 2px 0 0 rgba(255, 90, 82, .7); text-transform: uppercase; }
-  .t span { display: block; color: #ff5a52; text-shadow: 2px 0 0 rgba(94, 246, 255, .55); }
-  .r { position: absolute; left: 32px; right: 22px; bottom: 24px; height: 2px; background: linear-gradient(90deg, #ff5a52 40%, rgba(255, 90, 82, .2)); }
+  /* Lime: teal-black ground, lime chrome #ddff5e / #c0dd60, cyan accent #5ef6ff */
+  .b { position: relative; width: 320px; height: 180px; overflow: hidden; background: #0d0b13; }
+  .b::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 62%, rgba(221, 255, 94, .12) 62% 65%, transparent 65%); }
+  .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: #ddff5e; }
+  .t { position: absolute; left: 30px; top: 42px; font: 34px/1.05 Michroma, sans-serif; color: #f2ffd8; letter-spacing: 1px;
+       text-shadow: 2px 0 0 rgba(221, 255, 94, .7); text-transform: uppercase; }
+  .t span { display: block; color: #c0dd60; text-shadow: 2px 0 0 rgba(94, 246, 255, .55); }
+  .r { position: absolute; left: 32px; right: 22px; bottom: 24px; height: 2px; background: linear-gradient(90deg, #ddff5e 40%, rgba(221, 255, 94, .2)); }
   .c { position: absolute; right: 22px; top: 22px; width: 18px; height: 18px; border-top: 2px solid #5ef6ff; border-right: 2px solid #5ef6ff; }
 </style>
 </head>
 <body>
-<div class="b"><div class="bar"></div><div class="c"></div><div class="t">Home<span>Deck</span></div><div class="r"></div></div>
+<div class="b"><div class="bar"></div><div class="c"></div><div class="t">Alpha<span>Deck</span></div><div class="r"></div></div>
 </body>
 </html>

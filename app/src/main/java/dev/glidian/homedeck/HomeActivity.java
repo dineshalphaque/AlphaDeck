@@ -326,8 +326,7 @@ public class HomeActivity extends Activity {
         nowPlaying.stop();
         if (tvInputs != null) tvInputs.unregisterCallback(inputWatch);
         if (netWatching) {
-            netWatching = false;
-            try { getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netWatch); } catch (RuntimeException e) { Log.w(TAG, "network watch", e); }
+            try { getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netWatch); netWatching = false; } catch (RuntimeException e) { Log.w(TAG, "network watch", e); }
         }
         if (web != null) {
             web.onPause();

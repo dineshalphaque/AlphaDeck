@@ -49,11 +49,11 @@ try {
     if (hold) await sleep(hold);
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code: k });
   };
-  const st = () => run(`({ packsOpen, jumpOpen, trapped, sleeping, visible: !$('packs').hidden, jl: cur?.dataset.jl ?? null, tabs: document.querySelectorAll('.hd-tab[data-f]').length })`);
-  const openPacks = async () => {
+  const st = () => run(`({ packsOpen, jumpOpen, trapped: popups.length > 0, sleeping, visible: !$('packs').hidden, jl: cur?.dataset.jl ?? null, tabs: document.querySelectorAll('.hd-tab[data-f]').length })`);
+  const openPacks = async (nth = 0) => {   // nth: which visible app tile Jump To is opened from
     await send('Page.navigate', { url: base + 'index.html?nosetup' });
     await sleep(2500);
-    await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
+    await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].filter(e => e.offsetParent)[${nth}])`);
     await sleep(150);
     await key('j'); await sleep(350);
     await run(`(() => { const r = jList.querySelector('[data-jl="iconpack"]'); cur = null; TV.focus(r); })()`);
@@ -85,6 +85,39 @@ try {
   if (!ok) fails++;
   console.log(`${ok ? 'PASS' : 'FAIL'} packs-Back: packsOpen=${a.packsOpen} jumpOpen=${a.jumpOpen} jl=${a.jl}`);
   await key('Escape'); await sleep(400);   // close Jump To again so the harness ends clean
+
+  // (3) the picker is on the pop-up stack: only its rows take the remote, focus starts on the current pack
+  opened = await openPacks();
+  const so = await run(`(() => ({ stack: popups.map(l => l.id).join(',') || '-', pk: cur?.dataset.pk ?? null, iconPack,
+    stray: [...document.querySelectorAll('.stage [data-f]')].filter(el => !$('packs').contains(el)).length,
+    rows: pkList.querySelectorAll('[data-f]').length }))()`);
+  ok = opened === true && so.stack === 'packs' && so.stray === 0 && so.rows > 0 && so.pk === so.iconPack;
+  if (!ok) fails++;
+  console.log(`${ok ? 'PASS' : 'FAIL'} packs-stack:open stack=${so.stack} stray=${so.stray} rows=${so.rows} cur=${so.pk} iconPack=${so.iconPack}`);
+
+  // (4) OK on the current pack closes the picker the same way as Back: Jump To again on the iconpack row
+  await key('Enter'); await sleep(600);
+  a = await st();
+  const okStack = await run(`popups.map(l => l.id).join(',') || '-'`);
+  ok = a.packsOpen === false && a.visible === false && a.jumpOpen === true && a.jl === 'iconpack' && okStack === 'jump';
+  if (!ok) fails++;
+  console.log(`${ok ? 'PASS' : 'FAIL'} packs-OK: packsOpen=${a.packsOpen} hidden=${!a.visible} stack=${okStack} jl=${a.jl}`);
+
+  // (5) known, pre-existing (post-refactor list): IconPack -> Jump To -> close Jump To leaves nothing focused
+  await key('Escape'); await sleep(400);
+  const kj = await run(`({ stack: popups.map(l => l.id).join(',') || '-', cur: cur ? (cur.dataset.app ?? cur.dataset.tab ?? (cur.id || cur.className)) : null })`);
+  console.log(`KNOWN packs-Jump-close: stack=${kj.stack} cur=${kj.cur} (pre-existing, not counted)`);
+
+  // (6) closePackPicker(false) (the away screen's path) does not reopen Jump To; focus goes to the first control of the
+  //     active section, as untrap(null) did, not to the tile Jump To was opened from
+  opened = await openPacks(2);
+  await run(`closePackPicker(false)`); await sleep(600);
+  const nj = await run(`(() => ({ stack: popups.map(l => l.id).join(',') || '-', jumpOpen, hidden: $('packs').hidden,
+    first: cur === document.querySelector('.section:not(.is-off) [data-f]'), app: cur?.dataset.app ?? null,
+    tabs: document.querySelectorAll('.hd-tab[data-f]').length }))()`);
+  ok = opened === true && nj.stack === '-' && nj.jumpOpen === false && nj.hidden === true && nj.first === true && nj.tabs === 3;
+  if (!ok) fails++;
+  console.log(`${ok ? 'PASS' : 'FAIL'} packs-noJump: stack=${nj.stack} jumpOpen=${nj.jumpOpen} hidden=${nj.hidden} firstControl=${nj.first} cur=${nj.app} tabs=${nj.tabs}`);
 
   code = fails ? 1 : 0;
 } catch (e) {

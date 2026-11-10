@@ -1864,21 +1864,23 @@
   }
   // the IconPack picker: same popup, rows and focus as Online extras; OK picks, Back closes, both return to the settings menu
   const packs = $('packs'), pkList = $('pkList');
-  let packsOpen = false;
+  // back: () => null: on close, focus goes to the first control of the active section (as before), not to the tile Jump To was opened from
+  LAYERS.packs = { el: packs, back: () => null,
+    onOpen: () => { packs.hidden = false; drawPacks(); TV.focus(pkList.querySelector(`[data-pk="${iconPack}"]`) || pkList.querySelector('[data-f]')); },
+    onClose: () => { packs.hidden = true; pkList.innerHTML = ''; } };
+  Object.defineProperty(globalThis, 'packsOpen', { get: () => isOpen('packs'), configurable: true });
   function drawPacks() {
     pkList.innerHTML = ICON_PACKS.map(p => `<div class="exl hd-frame" data-pk="${p.id}" data-f>
       <span class="exl__name">${esc(p.label)}</span><span class="exl__val">${p.id === iconPack ? 'Current' : ''}</span>
       <span class="exl__desc">${p.desc}</span></div>`).join('');
   }
   function openPackPicker() {
-    if (packsOpen || trapped) return;
-    packsOpen = true; trap(packs);
-    packs.hidden = false; drawPacks();
-    TV.focus(pkList.querySelector(`[data-pk="${iconPack}"]`) || pkList.querySelector('[data-f]'));
+    if (packsOpen || popups.length) return;
+    openLayer('packs');
   }
   function closePackPicker(toJump = true) {
     if (!packsOpen) return;
-    packsOpen = false; packs.hidden = true; pkList.innerHTML = ''; untrap(null);
+    closeLayer('packs');
     if (toJump) setTimeout(() => { openJump(); const r = jList.querySelector('[data-jl="iconpack"]'); if (r) { cur = null; TV.focus(r); } });
   }
   function setIconPack(id) {

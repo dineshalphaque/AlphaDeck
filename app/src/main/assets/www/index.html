@@ -1878,10 +1878,10 @@
     packs.hidden = false; drawPacks();
     TV.focus(pkList.querySelector(`[data-pk="${iconPack}"]`) || pkList.querySelector('[data-f]'));
   }
-  function closePackPicker() {
+  function closePackPicker(toJump = true) {
     if (!packsOpen) return;
     packsOpen = false; packs.hidden = true; pkList.innerHTML = ''; untrap(null);
-    setTimeout(() => { openJump(); const r = jList.querySelector('[data-jl="iconpack"]'); if (r) { cur = null; TV.focus(r); } });
+    if (toJump) setTimeout(() => { openJump(); const r = jList.querySelector('[data-jl="iconpack"]'); if (r) { cur = null; TV.focus(r); } });
   }
   function setIconPack(id) {
     iconPack = id; store.set('iconpack', id);
@@ -2104,6 +2104,7 @@
   function sleep() {
     if (sleeping || setupOpen) return;
     if (moving) endMove(false);
+    closePackPicker(false);   // Alpha Deck's icon pack picker, without going back to Jump To
     closeKbd(false);   // the keyboard sits on top; close it (without saving) before the overlay under it
     endCall(false); closeOpts(); closeJump(); closeInfo(); closeSearch(); closeExtras(); endLink();
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());

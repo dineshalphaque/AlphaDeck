@@ -108,10 +108,10 @@ try {
   const kj = await run(`({ stack: popups.map(l => l.id).join(',') || '-', cur: cur ? (cur.dataset.app ?? cur.dataset.tab ?? (cur.id || cur.className)) : null })`);
   console.log(`KNOWN packs-Jump-close: stack=${kj.stack} cur=${kj.cur} (pre-existing, not counted)`);
 
-  // (6) closePackPicker(false) (the away screen's path) does not reopen Jump To; focus goes to the first control of the
+  // (6) closeAll() (the away screen's path) does not reopen Jump To; focus goes to the first control of the
   //     active section, as untrap(null) did, not to the tile Jump To was opened from
   opened = await openPacks(2);
-  await run(`closePackPicker(false)`); await sleep(600);
+  await run(`closeAll()`); await sleep(600);
   const nj = await run(`(() => ({ stack: popups.map(l => l.id).join(',') || '-', jumpOpen, hidden: $('packs').hidden,
     first: cur === document.querySelector('.section:not(.is-off) [data-f]'), app: cur?.dataset.app ?? null,
     tabs: document.querySelectorAll('.hd-tab[data-f]').length }))()`);

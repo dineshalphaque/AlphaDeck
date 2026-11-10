@@ -1864,10 +1864,10 @@
     if (packsOpen || popups.length) return;
     openLayer('packs');
   }
-  function closePackPicker(toJump = true) {
+  function closePackPicker() {
     if (!packsOpen) return;
     closeLayer('packs');
-    if (toJump) setTimeout(() => { openJump(); const r = jList.querySelector('[data-jl="iconpack"]'); if (r) { cur = null; TV.focus(r); } });
+    setTimeout(() => { openJump(); const r = jList.querySelector('[data-jl="iconpack"]'); if (r) { cur = null; TV.focus(r); } });
   }
   function setIconPack(id) {
     iconPack = id; store.set('iconpack', id);

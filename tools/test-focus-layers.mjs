@@ -3,10 +3,10 @@
 // Usage: node tools/test-focus-layers.mjs   (set CHROME to the Chrome binary; needs Node 22+)
 //
 // Preview-mode limits (the test runs index.html?nosetup, so NATIVE is undefined):
-//   - voice()  shows the canned "coming later" message instead of listening (index.html:1519)
-//   - the `del` options row only toasts, nothing is uninstalled (1396)
+//   - voice()  shows the canned "coming later" message instead of listening (see voice())
+//   - the `del` options row only toasts, nothing is uninstalled (runOpt's `del` branch)
 //   - incoming() is driven by the `a` key as a stand-in for a real HDMI signal event
-//   - NATIVE.on(...) callbacks (resume/home/inputs, 2065+) never fire, so no external input changes happen
+//   - NATIVE.on(...) callbacks (resume/home/inputs, the NATIVE.on block after the key handlers) never fire, so no external input changes happen
 import { createServer } from 'node:http';
 import { createReadStream, mkdtempSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -98,7 +98,7 @@ try {
   const stack = () => run(`popups.map(l => l.id).join(',') || '-'`);
   const stackIs = async (id, want) => { const got = await stack(); report(id, got === want, `stack=${got}`); };
 
-  // the D-pad still reaches the deck: Right from the Home tab lands on the Apps tab (ladder fall-through 2017-2019)
+  // the D-pad still reaches the deck: Right from the Home tab lands on the Apps tab (the key handler falls through to edgeMove/vertMove)
   const dpad = async () => {
     await run(`TV.focus(document.querySelector('[data-tab="0"]'))`);
     await sleep(120);
@@ -144,7 +144,7 @@ try {
   await closed('radio-held');
 
   // ---- Jump To ---------------------------------------------------------------------------------------
-  // open via `j` (2027) and openJump 1232-1238
+  // open via `j` (the key handler's shortcuts) and openJump()
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('j'); await sleep(350);
@@ -157,14 +157,14 @@ try {
   report('jump-stack:closed', jClosedStack.n === 0 && jClosedStack.top === null && jClosedStack.is === false && jClosedStack.jo === false, `n=${jClosedStack.n} top=${jClosedStack.top} isOpen=${jClosedStack.is} jumpOpen=${jClosedStack.jo}`);
   await closed('jump-J');
 
-  // long Back hold 700 ms opens it (2025 + keyup 2042 backUp)
+  // long Back hold 700 ms opens it (keydown escTimer + keyup backUp())
   await key('Backspace', 700); await sleep(350);
   const bOpen = await run(`({ jumpOpen: isOpen('jump'), trapped: popups.length > 0 })`);
   await openLayer('jump-Back', '.jump', ` jumpOpen=${bOpen.jumpOpen}`);
   await key('Escape'); await sleep(250);
   await closed('jump-Back');
 
-  // ---- options via long OK on an app tile (2022 -> openOpts 1339) -------------------------------------
+  // ---- options via long OK on an app tile (keydown holdTimer -> openOpts()) ----------------------------------
   const openOptsOnTile = async () => {
     await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
     await sleep(150);
@@ -174,11 +174,11 @@ try {
 
   let o = await openOptsOnTile();
   const optsLayerOk = await openLayer('opts-longOK', '.opts', ` optsOpen=${o.optsOpen}`);
-  // outside click closes it (2060)
+  // outside click closes it (the stage click handler)
   await run(`(() => { const ev = new MouseEvent('click', { bubbles: true }); document.querySelector('.stage').dispatchEvent(ev); })()`);
   await closed('opts-longOK');
 
-  // `o` key (2032) plus Back (2012)
+  // `o` key (the key handler's shortcuts) plus Back (its Options branch)
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('o'); await sleep(300);
@@ -202,7 +202,7 @@ try {
   await stackIs('info-after-opts:stack-closed', '-');
   await closed('info-after-opts');
 
-  // ---- pin (BUG A is fixed on main: index.html:1400-1402 restores the baseline manually) --------------
+  // ---- pin (BUG A is fixed on main: runOpt's pin/move branch restores the baseline manually) ---------
   await openOptsOnTile();
   const pinStep = await run(`(() => { const items = [...oList.querySelectorAll('[data-opt]')]; const i = items.findIndex(e => e.dataset.opt === 'pin');
     if (i >= 0) { cur = null; TV.focus(items[i]); } return i; })()`);
@@ -216,7 +216,7 @@ try {
   await stackIs('opts-pin:stack', '-');
   await closed('opts-pin');
 
-  // ---- move mode: all keys are intercepted while moving (1951-1959) ----------------------------------
+  // ---- move mode: all keys are intercepted while moving (the key handler's move branch) -------------------------------
   await openOptsOnTile();
   const moveStep = await run(`(() => { const items = [...oList.querySelectorAll('[data-opt]')]; const i = items.findIndex(e => e.dataset.opt === 'move');
     if (i >= 0) { cur = null; TV.focus(items[i]); } return i; })()`);
@@ -231,7 +231,7 @@ try {
     report('move-mode:open', false, 'no move row in Options');
   }
 
-  // ---- search via `/` (2034) -------------------------------------------------------------------------
+  // ---- search via `/` (the key handler's shortcuts) ------------------------------------------------
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('/'); await sleep(350);
@@ -244,7 +244,7 @@ try {
   report('search-stack:closed', sClosedStack.n === 0 && sClosedStack.so === false, `n=${sClosedStack.n} searchOpen=${sClosedStack.so}`);
   await closed('search-slash');
 
-  // ---- call via `a` (2030 -> incoming 1291) ----------------------------------------------------------
+  // ---- call via `a` (the key handler's shortcuts -> incoming()) ---------------------------------------------------
   await key('a'); await sleep(350);
   const cOpen = await run(`({ callOpen: !$('call').hidden || $('call').classList.contains('on'), trapped: popups.length > 0 })`);
   await openLayer('call', '.call', ` on=${cOpen.callOpen}`);
@@ -253,7 +253,7 @@ try {
   await stackIs('call-stack:closed', '-');
   await closed('call');
 
-  // ---- call Accept (OK on callGo, 1864) and Decline (Right then OK on callNo, 1865): focus goes back to the tile ----
+  // ---- call Accept (OK on callGo in the tv:select handler) and Decline (Right then OK on callNo): focus goes back to the tile ----
   for (const [name, keys] of [['call-Accept', ['Enter']], ['call-Decline', ['ArrowRight', 'Enter']]]) {
     await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
     await sleep(150);
@@ -294,7 +294,7 @@ try {
     await closed(`call-refused-${name}`);
   }
 
-  // ---- the away screen closes an open call (sleep 1926 -> endCall(false)) -----------------------------
+  // ---- the away screen closes an open call (sleep() -> closeAll()) --------------------------
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('a'); await sleep(350);
@@ -304,7 +304,7 @@ try {
   report('call-sleep:stack', cs.stack === '-' && cs.co === false && cs.sleeping === false, `stack=${cs.stack} callOpen=${cs.co} sleeping=${cs.sleeping}`);
   await closed('call-sleep');
 
-  // ---- incoming() during the away screen still opens the call (only the native caller 2100 skips sleeping);
+  // ---- incoming() during the away screen still opens the call (only the native port-update caller skips sleeping);
   //      the first key only wakes, then Back declines --------------------------------------------------------
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
@@ -319,7 +319,7 @@ try {
     `asleep stack=${ca1.stack} | first key: sleeping=${ca2.sleeping} stack=${ca2.stack} curIsCallGo=${ca2.go} | Back: stack=${ca3}`);
   await closed('call-during-away');
 
-  // ---- call during move mode (move mode takes every key first, 1951-1959): characterization, XFAIL ---------------
+  // ---- call during move mode (move mode takes every key first, in the key handler's move branch): characterization, XFAIL ---------------
   await openOptsOnTile();
   await run(`(() => { const r = [...oList.querySelectorAll('[data-opt]')].find(e => e.dataset.opt === 'move'); cur = null; TV.focus(r); })()`);
   await sleep(150); await key('Enter'); await sleep(350);
@@ -332,7 +332,7 @@ try {
   if (await run(`!!moving`)) { await key('Backspace'); await sleep(300); }
   await closed('call-over-move');
 
-  // ---- setup via run('openSetup()') (1542), closed with Back (1970 -> closeSetup(false) 1553) --------
+  // ---- setup via run('openSetup()'), closed with Back (the key handler's Setup branch -> closeSetup(false)) ---------
   await run(`openSetup()`);
   await sleep(400);
   const suOpen = await run(`({ setupOpen: isOpen('setup'), trapped: popups.length > 0 })`);
@@ -342,7 +342,7 @@ try {
   await stackIs('setup-Back:stack', '-');
   await closed('setup-Back');
 
-  // ---- setup stepped through with Next until Done (#stNext 1863 -> setupGo 1548 -> closeSetup(true) at step 4) ---
+  // ---- setup stepped through with Next until Done (#stNext in the tv:select handler -> setupGo() -> closeSetup(true) at step 4) ---
   await run(`openSetup()`);
   await sleep(400);
   for (let n = 0; n < 4; n++) {
@@ -467,7 +467,7 @@ try {
   const closedOk = await closed('kbd-over-jump');
   if (closedOk && !jumpBackOk) report('kbd-over-jump-still-open', false, `jumpOpen=${stillJump.jumpOpen}`);
 
-  // ---- kbd over jump closed with its Done button (#kDone 1861 -> closeKbd(true)): Jump is the top layer again ----
+  // ---- kbd over jump closed with its Done button (#kDone in the tv:select handler -> closeKbd(true)): Jump is the top layer again ----
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('j'); await sleep(350);
@@ -505,7 +505,7 @@ try {
   await run(`if (isOpen('extras')) closeExtras()`);
   await closed('kbd-over-extras');
 
-  // ---- extras via the Jump `ext` row (closeJump then setTimeout(openExtras), 1268) --------------------
+  // ---- extras via the Jump `ext` row (stepJump: closeJump then setTimeout(openExtras)) -----------------
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('j'); await sleep(350);
@@ -541,7 +541,7 @@ try {
   await sleep(250);
   await closed('sleep-everything-close');
 
-  // ---- sleep() with kbd over jump: the keyboard closes first (1919), then Jump (1920) -----------------
+  // ---- sleep() with kbd over jump: closeAll() closes the keyboard first (top of the stack), then Jump --------------
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('j'); await sleep(350);

@@ -1854,18 +1854,17 @@
   LAYERS.packs = { el: packs, back: () => null,
     onOpen: () => { packs.hidden = false; drawPacks(); TV.focus(pkList.querySelector(`[data-pk="${iconPack}"]`) || pkList.querySelector('[data-f]')); },
     onClose: () => { packs.hidden = true; pkList.innerHTML = ''; } };
-  Object.defineProperty(globalThis, 'packsOpen', { get: () => isOpen('packs'), configurable: true });
   function drawPacks() {
     pkList.innerHTML = ICON_PACKS.map(p => `<div class="exl hd-frame" data-pk="${p.id}" data-f>
       <span class="exl__name">${esc(p.label)}</span><span class="exl__val">${p.id === iconPack ? 'Current' : ''}</span>
       <span class="exl__desc">${p.desc}</span></div>`).join('');
   }
   function openPackPicker() {
-    if (packsOpen || popups.length) return;
+    if (popups.length) return;
     openLayer('packs');
   }
   function closePackPicker() {
-    if (!packsOpen) return;
+    if (!isOpen('packs')) return;
     closeLayer('packs');
     setTimeout(() => { openJump(); const r = jList.querySelector('[data-jl="iconpack"]'); if (r) { cur = null; TV.focus(r); } });
   }
@@ -2187,7 +2186,7 @@
       else if (k === 'Enter' && e.repeat) stop();
       return;
     }
-    if (packsOpen) {
+    if (isOpen('packs')) {
       const items = [...pkList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if (back) { stop(); closePackPicker(); }

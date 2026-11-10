@@ -49,7 +49,7 @@ try {
     if (hold) await sleep(hold);
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code: k });
   };
-  const st = () => run(`({ packsOpen, jumpOpen, trapped: popups.length > 0, sleeping, visible: !$('packs').hidden, jl: cur?.dataset.jl ?? null, tabs: document.querySelectorAll('.hd-tab[data-f]').length })`);
+  const st = () => run(`({ packsOpen: isOpen('packs'), jumpOpen: isOpen('jump'), trapped: popups.length > 0, sleeping, visible: !$('packs').hidden, jl: cur?.dataset.jl ?? null, tabs: document.querySelectorAll('.hd-tab[data-f]').length })`);
   const openPacks = async (nth = 0) => {   // nth: which visible app tile Jump To is opened from
     await send('Page.navigate', { url: base + 'index.html?nosetup' });
     await sleep(2500);
@@ -59,7 +59,7 @@ try {
     await run(`(() => { const r = jList.querySelector('[data-jl="iconpack"]'); cur = null; TV.focus(r); })()`);
     await sleep(150);
     await key('Enter'); await sleep(500);
-    return run(`packsOpen`);
+    return run(`isOpen('packs')`);
   };
 
   let fails = 0;
@@ -112,7 +112,7 @@ try {
   //     active section, as untrap(null) did, not to the tile Jump To was opened from
   opened = await openPacks(2);
   await run(`closeAll()`); await sleep(600);
-  const nj = await run(`(() => ({ stack: popups.map(l => l.id).join(',') || '-', jumpOpen, hidden: $('packs').hidden,
+  const nj = await run(`(() => ({ stack: popups.map(l => l.id).join(',') || '-', jumpOpen: isOpen('jump'), hidden: $('packs').hidden,
     first: cur === document.querySelector('.section:not(.is-off) [data-f]'), app: cur?.dataset.app ?? null,
     tabs: document.querySelectorAll('.hd-tab[data-f]').length }))()`);
   ok = opened === true && nj.stack === '-' && nj.jumpOpen === false && nj.hidden === true && nj.first === true && nj.tabs === 3;

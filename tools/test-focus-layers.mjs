@@ -157,7 +157,7 @@ try {
   report('jump-stack:closed', jClosedStack.n === 0 && jClosedStack.top === null && jClosedStack.is === false && jClosedStack.jo === false, `n=${jClosedStack.n} top=${jClosedStack.top} isOpen=${jClosedStack.is} jumpOpen=${jClosedStack.jo}`);
   await closed('jump-J');
 
-  // long Back hold 700 ms opens it (keydown escTimer + keyup backUp())
+  // a long Back opens it: the test holds Back 700 ms, past the escTimer hold in the keydown handler (a short Back is keyup backUp())
   await key('Backspace', 700); await sleep(350);
   const bOpen = await run(`({ jumpOpen: isOpen('jump'), trapped: popups.length > 0 })`);
   await openLayer('jump-Back', '.jump', ` jumpOpen=${bOpen.jumpOpen}`);

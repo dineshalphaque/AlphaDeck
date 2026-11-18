@@ -1,5 +1,16 @@
 # Alpha Deck
 
+<p align="center">
+  <a href="https://github.com/dineshalphaque/AlphaDeck/releases/latest"><img alt="latest" src="https://img.shields.io/github/v/release/dineshalphaque/AlphaDeck?label=latest&color=orange"></a>
+  <a href="https://github.com/dineshalphaque/AlphaDeck/releases"><img alt="downloads" src="https://img.shields.io/github/downloads/dineshalphaque/AlphaDeck/total?color=brightgreen"></a>
+  <a href="LICENSE"><img alt="licence" src="https://img.shields.io/badge/licence-MIT-blue"></a>
+  <img alt="Android TV 8.0+" src="https://img.shields.io/badge/Android%20TV-8.0%2B-3DDC84">
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> · <a href="#what-it-does">What it does</a> · <a href="#using-it">Using it</a> · <a href="#build-from-source">Build from source</a>
+</p>
+
 A lightweight launcher and home screen for Google TV and Android TV, based on [Home Deck](https://github.com/glidiandev/home-deck) by
 Glidian. Your apps as big glowing tiles, the art of whatever you're on filling the background, a music bar that shows
 what's playing, and your HDMI inputs named after the devices on them. No ads, no recommendation rows, and it works

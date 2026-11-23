@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">Alpha Deck</string>
     <string name="np_service_name">Alpha Deck music bar</string>
+    <string name="home_service_name">Alpha Deck Home button</string>
+    <string name="home_service_description">Makes the remote\'s Home button open Alpha Deck, and opens Alpha Deck if the TV\'s own home screen shows up. It only listens for the Home button, and it reads no screen content.</string>
 </resources>

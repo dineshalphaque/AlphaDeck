@@ -38,9 +38,14 @@ From Home Deck:
 - **Inputs**: your HDMI ports with their device names, Live TV, Network and Settings.
 - **Music bar** showing what's playing, with play/pause.
 - **Jump To** (hold Back): picture and sound settings, inputs, theme (Normal, Lime or Violet), accent color,
-  clock seconds, away screen, Lite mode, online extras, setup, app order and About.
-- **Away screen and screen saver**: a dim drifting clock or the rainy neon city.
-- **Optional weather** from Open-Meteo, off until you turn it on.
+  clock seconds, away screen, screen saver, Lite mode, online extras, setup, hidden apps, app order, Home button and
+  About.
+- **Away screen and screen saver**: a dim drifting clock, the rainy neon city, or Shuffle between them, with or
+  without the time.
+- **Hide and rename apps** from the Hold OK menu.
+- **Home button helper** (optional, see below) for Google TVs that keep their own home screen.
+- **Optional online extras**: weather from Open-Meteo and a daily update check for new Home Deck releases, both off
+  until you turn them on.
 
 Added in Alpha Deck:
 
@@ -65,13 +70,14 @@ Added in Alpha Deck:
 |---|---|
 | Arrows | Move around. Going past the end of a row carries on to the next. |
 | OK | Open |
-| Hold OK | Options: open, pin, move, info, uninstall (on inputs: switch, name, audio out) |
+| Hold OK | Options: open, pin, move, rename, hide, info, uninstall (on inputs: switch, name, audio out) |
 | Back | Climb back up to the row, the tab, then Home |
 | Hold Back | Jump To |
 | Play/pause | Play or pause what's in the music bar |
 
 To move an app, hold OK, pick **Move**, slide it with the arrows and press OK. **Jump To > App order** resets
-everything.
+everything. **Rename** gives an app your own name in Alpha Deck; **Hide** takes it out of the rows and
+search, and **Jump To > Hidden apps** brings it back.
 
 ## Music bar (optional)
 
@@ -137,6 +143,23 @@ adb shell pm disable-user --user 0 com.google.android.apps.tv.launcherx
 > Installing another app that can be a home screen can make the TV forget your choice. If Home stops opening Alpha
 > Deck, run the `set-home-activity` command again.
 
+### Home button helper (optional)
+
+On a lot of Google TVs, Home keeps going to Google's home screen whatever you set. Instead of switching Google's
+launcher off, you can let Alpha Deck answer the Home button itself. Give it one permission, once:
+
+```bash
+adb shell pm grant com.alphaque.alphadeck android.permission.WRITE_SECURE_SETTINGS
+```
+
+Then turn it on in **Jump To > Home button**. From then on, Home opens Alpha Deck, and if Google's home screen comes up
+anyway (when the TV wakes, say), Alpha Deck opens over it. It's an accessibility service that only gets the Home
+button and only hears about Google's own TV home screens. It never sees other apps or anything on the screen.
+
+While it's on, holding Home no longer opens the TV's own quick panel (Jump To has the TV's settings), and on some TVs
+holding a volume button steps it once instead of repeating. Turn it off in the same place. The permission only lets
+Alpha Deck switch its own helper on and off; to take it back, run the same command with `revoke` instead of `grant`.
+
 ### Switching back
 
 List the home screens on your TV, then point Home at the one you want:
@@ -166,10 +189,13 @@ adb shell cmd notification disallow_listener com.alphaque.alphadeck/dev.glidian.
 adb uninstall com.alphaque.alphadeck
 ```
 
+Uninstalling also removes the Home button helper, if you had it on.
+
 ## Privacy
 
 Your favorites, names and settings stay on the TV. Nothing is sent anywhere. The internet permission is only for the
-optional weather, which is off until you turn it on.
+optional online extras (weather, update check), which are off until you turn them on. The Home button helper, if you
+turn it on, only gets the Home button and reads no screen content.
 
 ## Build from source
 

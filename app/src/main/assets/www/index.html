@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Home Deck</title>
+<script>
+  // the saved theme goes on before the first paint, so the startup screen opens in it instead of Normal's red
+  // (same order as THEMES in the main script)
+  try {
+    const mode = ['normal', 'lime', 'violet'][JSON.parse(localStorage.getItem('homedeck-theme'))];
+    if (mode) document.documentElement.setAttribute('data-hd-mode', mode);
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="base.css">
 <link rel="stylesheet" href="kit/tokens.css">
 <link rel="stylesheet" href="kit/components.css">
@@ -23,8 +31,8 @@
     --acc: #5ef6ff; --acc-rgb: 94, 246, 255; --acc-dim: #56a3a2;
     --oct: polygon(9% 0, 91% 0, 100% 9%, 100% 91%, 91% 100%, 9% 100%, 0 91%, 0 9%);
   }
-  /* the viewer's accent color re-keys the live ink everywhere (Normal mode only) */
-  html:not([data-hd-mode="alert"]):not([data-hd-mode="lime"]) .stage {
+  /* the viewer's accent color re-keys the live ink everywhere, in every theme (Theme keeps the theme's own) */
+  html.has-acc:not([data-hd-mode="alert"]) .stage {
     --hd-act: var(--acc); --hd-act-rgb: var(--acc-rgb); --hd-act-soft: var(--acc); --hd-act-dim: var(--acc-dim);
     --hd-focus: var(--acc);
     --hd-act-line: rgba(var(--acc-rgb), .9); --hd-act-faint: rgba(var(--acc-rgb), .14); --hd-act-ghost: rgba(var(--acc-rgb), .07);
@@ -57,7 +65,7 @@
                 linear-gradient(0deg, var(--hd-ground) 0%, rgba(7, 9, 15, .85) 30%, transparent 47%),
                 var(--hd-haze-top); }
   .tint { position: absolute; inset: 0; pointer-events: none; background: var(--acc); opacity: .045; }
-  [data-hd-mode="alert"] .tint, [data-hd-mode="lime"] .tint { display: none; }
+  [data-hd-mode="alert"] .tint, html:not(.has-acc)[data-hd-mode="lime"] .tint, html:not(.has-acc)[data-hd-mode="violet"] .tint { display: none; }
   html.lite .bg-glow { display: none; }
   .hd-edge-rails::before { left: 22px; } .hd-edge-rails::after { right: 22px; }
 
@@ -416,6 +424,7 @@
   .standby__pos.fade { opacity: 0; }
   .standby__clock { color: var(--hd-chrome); font-size: 200px; text-shadow: var(--hd-glow-text); }
   .standby__clock .hd-num__frac { color: var(--hd-chrome-dim); }
+  .standby__rain { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
 
   .boot { position: absolute; inset: 0; z-index: 1300; background: var(--hd-c-void); display: grid; place-items: center;
           transition: opacity var(--hd-t-slow) var(--hd-ease-out); }
@@ -531,7 +540,7 @@
 
   <div class="jump" id="jump">
     <div class="hd-panel hd-panel--spine-act">
-      <div class="hd-panel__head">Jump To <span class="jump__ver">Home Deck v0.1 // glidian.dev</span></div>
+      <div class="hd-panel__head">Jump To <span class="jump__ver">Home Deck // glidian.dev</span></div>
       <div id="jList"></div>
       <div class="jump__foot">
         <span class="hd-hint"><span class="hd-key">&larr;</span><span class="hd-key">&rarr;</span>Change</span>
@@ -649,6 +658,7 @@
 <script src="kit/kit.js"></script>
 <script src="native.js"></script>
 <script src="marquee.js"></script>
+<script src="saver.js"></script>
 <script>
   const stage = document.querySelector('.stage');
   const root = document.documentElement;
@@ -662,6 +672,10 @@
   const DEV = NATIVE ? NATIVE.device() : null;
   const deckSub = DEV ? `${DEV.name || 'This TV'} // ${DEV.panel >= 2160 ? '4K' : DEV.panel >= 1080 ? 'HD' : 'TV'} display` : 'Living room // 4K display';
   $('brandSub').textContent = deckSub;
+  // the version on show (Jump To's header, About) is the installed app's own, so a release can't leave an old one behind;
+  // the browser demo has no app around it and shows its copy's version (bump this one with build.gradle)
+  const VER = (NATIVE && NATIVE.appInfo('dev.glidian.homedeck').version) || '0.2.1';
+  document.querySelector('.jump__ver').textContent = `Home Deck v${VER} // glidian.dev`;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /* =====================================================================
@@ -736,6 +750,15 @@
         : { name: a.label, kind: a.kind, file: null, plain: a.icon, glow: '#8f8889', pkg: a.pkg, system: a.system, bg: '#0b0b10', fg: '#fff' });
     });
   }
+  // the viewer's own names for apps and the apps they hid, both kept by package (by name in the browser preview).
+  // `base` is the app's real name: it places the app in its group and is what Original name goes back to.
+  const appKey = a => a.pkg || a.base;
+  APPS.forEach(a => { a.base = a.name; });
+  const RENAMED = (o => o && typeof o === 'object' && !Array.isArray(o) ? o : {})(store.get('renamed', {}));
+  APPS.forEach(a => { const n = RENAMED[appKey(a)]; if (typeof n === 'string' && n.trim()) a.name = n; });
+  let HIDDEN = store.get('hidden', []);
+  if (!Array.isArray(HIDDEN)) HIDDEN = [];
+  const isHidden = i => HIDDEN.includes(appKey(APPS[i]));
   const DESC = {
     Streaming: 'Films and series on demand.', Video: 'Videos, channels and your subscriptions.', Anime: 'Anime, the same day as Japan.',
     Music: 'Music, playlists and podcasts.', Games: 'Games on the big screen.', Store: 'Get more apps for this TV.',
@@ -826,7 +849,7 @@
   let OPENED = NATIVE ? NATIVE.recents() : null;   // on the TV: when each app was last opened from here
   const lastOpened = i => OPENED ? (OPENED[APPS[i].pkg] ? Math.max(0, Math.round((Date.now() - OPENED[APPS[i].pkg]) / 60000)) : Infinity)
     : AGO[i] ?? 1440 * (3 + (i * 7) % 20);
-  const recent = () => APPS.map((_, i) => i).sort((a, b) => (lastOpened(a) - lastOpened(b)) || 0).slice(0, 5);
+  const recent = () => APPS.map((_, i) => i).filter(i => !isHidden(i)).sort((a, b) => (lastOpened(a) - lastOpened(b)) || 0).slice(0, 5);
   const agoText = m => m === Infinity ? 'not yet' : m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : m < 2880 ? 'yesterday' : `${Math.round(m / 1440)} days ago`;
   // what is playing (a sample track in the preview) for the radio strip
   const NOW = NATIVE ? { app: -1, label: '', station: '', track: '', artist: '', len: 0, t: 0, playing: false } : { app: 8, station: 'Night Drive FM', track: 'Glass Static', artist: 'Halcyon Wire', len: 238, t: 102, playing: true };
@@ -864,6 +887,7 @@
       favs = Array.from({ length: FAVS }, (_, n) => n < 5 ? first[n] ?? null : null);
     }
   }
+  favs = favs.map(i => i != null && APPS[i] && isHidden(i) ? null : i);   // a hidden app never holds a favorite spot
   const saveFavs = () => { store.set('favs', favs); if (NATIVE) store.set('favs-pkg', favs.map(i => i == null ? null : APPS[i].pkg)); };
   function renderFavs() {
     $('cnt-fav').textContent = two(favs.filter(i => i != null).length);
@@ -872,15 +896,16 @@
       : appTile(i)).join('');
   }
   function renderApps() {
-    const idx = n => APPS.findIndex(a => a.name === n), seen = new Set();
+    const idx = n => APPS.findIndex(a => a.base === n), seen = new Set();
     const groups = GROUPS.map(([g, names]) => [g, names.map(idx).filter(i => i >= 0)]);
     groups.forEach(([, l]) => l.forEach(i => seen.add(i)));
     // anything else on the TV joins the group for its kind, or the last group
     const KIND_GROUP = { Streaming: 0, Video: 1, Anime: 1, 'Free TV': 1, 'Live streams': 1, 'Live TV': 2, Sport: 2, News: 2,
                          Music: 3, Radio: 3, Kids: 4, Games: 5, Player: 6, Media: 6 };
     APPS.forEach((a, i) => { if (!seen.has(i)) groups[KIND_GROUP[a.kind] ?? groups.length - 1][1].push(i); });
+    groups.forEach(g => { g[1] = g[1].filter(i => !isHidden(i)); });   // hidden apps stay installed, just not shown
     // the viewer's own order inside each group, kept by package; apps not in it (new ones) follow in their usual order
-    const order = store.get('order', {}), keyOf = i => APPS[i].pkg || APPS[i].name;
+    const order = store.get('order', {}), keyOf = i => appKey(APPS[i]);
     groups.forEach(([g, l]) => {
       const o = order[g];
       if (Array.isArray(o)) l.sort((a, b) => { const x = o.indexOf(keyOf(a)), y = o.indexOf(keyOf(b)); return (x < 0 ? 1e6 : x) - (y < 0 ? 1e6 : y); });
@@ -890,9 +915,9 @@
        <div class="tiles tiles--apps">${l.map(i => appTile(i, 'art--sm')).join('')}</div></div>`).join('');
   }
   // glide the Apps view so the row you are on sits at the top (the last rows stop at the bottom)
-  function scrollApps(row) {
+  function scrollApps(row, el) {
     const sc = $('apps'), view = sc.parentNode;
-    const y = Math.max(0, Math.min(row.offsetTop, sc.offsetHeight - view.clientHeight + 70));
+    const y = Math.max(0, Math.min(Math.max(row.offsetTop, row.offsetTop + ((el ? el.offsetTop + el.offsetHeight - view.clientHeight + 70 : 0))), sc.offsetHeight - view.clientHeight + 70));
     sc.style.transform = `translateY(${-y}px)`;
     sc.style.perspectiveOrigin = `50% ${row.offsetTop + row.offsetHeight / 2}px`;   // the lean pivots on the row you are on
   }
@@ -929,7 +954,7 @@
   Promise.all(APPS.map(async a => {
     if (a.file) return;
     if (a.plain) { a.glow = await mainColor(a.plain); a.bgImg = a.plain; }
-    else { a.glow = hashCol(a.name); await fontsReady; a.bgImg = initialsArt(initials(a.name), a.glow); }
+    else { a.glow = hashCol(a.base); await fontsReady; a.bgImg = initialsArt(initials(a.name), a.glow); }
     a.fg = a.glow;
   })).then(() => { const f = cur; renderFavs(); renderApps(); arm(); refocus(f); });
 
@@ -1003,13 +1028,13 @@
   const lastIn = [null, null, null];
   function arm() {   // only the active section takes part; Up from the top line of a section goes to its tab
     sections.forEach((s, i) => {
-      s.querySelectorAll('[data-fi]').forEach(el => { el.toggleAttribute('data-f', i === sec && !trapped); delete el.dataset.up; });
+      s.querySelectorAll('[data-fi]').forEach(el => { el.toggleAttribute('data-f', i === sec && !popups.length); delete el.dataset.up; });
       if (i !== sec) return;
       const first = [...s.querySelector('.row').querySelectorAll('[data-fi]')].filter(el => el.offsetParent);
       const top = Math.min(...first.map(el => el.offsetTop));
       first.filter(el => el.offsetTop === top).forEach(el => { el.dataset.up = `[data-tab="${i}"]`; });
     });
-    $('live').toggleAttribute('data-f', sec === 0 && !$('live').hidden && !trapped);
+    $('live').toggleAttribute('data-f', sec === 0 && !$('live').hidden && !popups.length);
   }
   function place() {
     sections.forEach((s, i) => { s.style.transform = `translateX(${(i - sec) * 1960}px)`; s.classList.toggle('is-off', i !== sec); });
@@ -1070,7 +1095,7 @@
     const el = (q && stage.querySelector(q)) || (prev?.isConnected && prev.hasAttribute('data-f') ? prev : null);
     if (el) { cur = null; TV.focus(el); }
   }
-  let trapped = false;
+  const popups = [];   // the pop-up stack (Overlays, below); declared here because arm() reads it on the first paint
   arm(); place();
 
   stage.addEventListener('tv:focus', e => {
@@ -1082,7 +1107,7 @@
     deck.querySelectorAll('.row').forEach(r => { r.classList.toggle('is-active', r === row); if (r !== row) r.style.setProperty('--lean', '0deg'); });
     if (row) {
       lastIn[sec] = el;
-      if (row.closest('#apps')) scrollApps(row);
+      if (row.closest('#apps')) scrollApps(row, el);
       const r = el.getBoundingClientRect(), rr = row.getBoundingClientRect();
       row.style.setProperty('--lean', `${(-((r.left + r.width / 2 - rr.left) / rr.width - .5) * 4).toFixed(2)}deg`);
     }
@@ -1092,7 +1117,7 @@
   });
 
   /* =====================================================================
-     Toasts, hints, Lite (also automatic), Lime mode
+     Toasts, hints, Lite (also automatic), themes
      ===================================================================== */
   const toast = (kind, label, title, text, timeout = 3800) => { document.querySelectorAll('.hd-toast').forEach(t => t.remove()); return HD.toast({ kind, label, title, text, timeout }); };
   let hintTimer;
@@ -1100,7 +1125,7 @@
   function setLite(on, why) {
     root.classList.toggle('lite', on);
     HD.setCRT(!on && !reduce); HD.setGlitch(!on && !reduce);
-    J.lite.i = on ? 1 : 0; if (jumpOpen) drawJump('lite');
+    J.lite.i = on ? 1 : 0; if (isOpen('jump')) drawJump('lite');
     if (why) toast('warn', 'Performance', 'This screen looks slow', 'Lite mode is on now. Turn it off in Jump To.', 6000);
     else toast('reward', 'Performance', on ? 'Lite mode on' : 'Lite mode off', on ? 'Glows, haze, scanlines and glitch are off.' : 'Full effects are back.');
   }
@@ -1117,37 +1142,48 @@
     requestAnimationFrame(step);
     if (forced) setTimeout(() => { if (!isLite()) setLite(true, 'slow'); }, 1600);
   }
-  const isLime = () => HD.getMode() === 'lime';
-  function setLime(on) {
-    HD.setMode(on ? 'lime' : 'normal');
-    if (J.lime) J.lime.i = on ? 1 : 0;
-    toast('area', 'Display mode', on ? 'Lime mode on' : 'Back to normal', on ? 'Lime on teal-black.' : 'Your color again.');
+  // themes: the kit's display modes, picked in Jump To (or H for the next one) and kept across restarts
+  // (the script in <head> puts the saved one on early; keep its list in this order)
+  const THEMES = [
+    { mode: 'normal', name: 'Normal', note: 'Your color again.' },
+    { mode: 'lime', name: 'Lime', note: 'Lime on teal-black.' },
+    { mode: 'violet', name: 'Violet', note: 'Violet with a green edge.' },
+  ];
+  function setTheme(n, quiet) {   // the line under the name keeps the TV's name and display in every theme
+    const t = THEMES[n] || THEMES[0];
+    HD.setMode(t.mode);
+    J.theme.i = THEMES.indexOf(t); store.set('theme', J.theme.i);
+    if (!quiet) toast('area', 'Theme', t.mode === 'normal' ? 'Back to normal' : `${t.name} theme on`, t.note);
   }
 
   /* =====================================================================
      Overlays share one rule: while one is open, only its own controls take the remote
      ===================================================================== */
-  let saved = [];
-  function trap(box) {
-    trapped = true;
-    saved = [...stage.querySelectorAll('[data-f]')].filter(el => !box.contains(el));
-    saved.forEach(el => el.removeAttribute('data-f'));
-  }
-  function untrap(back) {
-    trapped = false;
-    saved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); saved = [];
-    arm(); renderLive(); arm();
-    cur = null; TV.focus(back?.isConnected && back.hasAttribute('data-f') ? back : stage.querySelector('.section:not(.is-off) [data-f]'));
-  }
 
   /* ---- Jump To ---- */
-  const ACCENTS = [['Cyan', '#5ef6ff', '#56a3a2'], ['Yellow', '#ffd740', '#c9a634'], ['Green', '#1bd676', '#25a865'], ['Violet', '#b36bff', '#8f5bd0'],
-                   ['Orange', '#ff9f43', '#d08038'], ['Blue', '#6aa8ff', '#5a86c8'], ['Lime', '#ddff5e', '#a9c25a']];
+  // the first accent, Theme, keeps each theme's own highlight; any other one re-keys the highlight in every theme
+  const ACCENTS = [['Theme', null, null], ['Cyan', '#5ef6ff', '#56a3a2'], ['Yellow', '#ffd740', '#c9a634'], ['Green', '#1bd676', '#25a865'],
+                   ['Violet', '#b36bff', '#8f5bd0'], ['Orange', '#ff9f43', '#d08038'], ['Blue', '#6aa8ff', '#5a86c8'], ['Lime', '#ddff5e', '#a9c25a']];
+  const swatch = n => ACCENTS[n][1] || 'var(--hd-act)';
   function applyAccent(n) {
-    const [, hex, dim] = ACCENTS[n], v = parseInt(hex.slice(1), 16);
+    const [, hex, dim] = ACCENTS[n];
+    store.set('acc-hex', hex);                                  // the rainy city screen savers read it (rain/index.html)
+    root.classList.toggle('has-acc', !!hex);
+    if (!hex) return ['--acc', '--acc-dim', '--acc-rgb'].forEach(p => root.style.removeProperty(p));
+    const v = parseInt(hex.slice(1), 16);
     root.style.setProperty('--acc', hex); root.style.setProperty('--acc-dim', dim);
     root.style.setProperty('--acc-rgb', `${v >> 16 & 255}, ${v >> 8 & 255}, ${v & 255}`);
   }
+  // saved before Theme was added: 'acc' counted from Cyan, so Cyan becomes Theme (the same look in Normal) and the rest move up one
+  const savedAccent = () => {
+    const n = store.get('accent', -1), old = store.get('acc', 0);
+    const i = n >= 0 ? n : old > 0 ? old + 1 : 0;
+    return i >= 0 && i < ACCENTS.length ? i : 0;
+  };
+  // what the away screen (and the TV's screen saver, away.html) shows: the dim clock, one of the rainy city views, or
+  // Shuffle (saver.js). Shuffle is also what anyone who never picked one gets; a pick, once made, stays.
+  const SAVERS = [['Clock', null], ['Window', 'window'], ['Downpour', 'downpour'], ['Shuffle', 'shuffle']];
+  const savedSaver = () => { const i = store.get('saver', AwayScenes.SHUFFLE); return i >= 0 && i < SAVERS.length ? i : AwayScenes.SHUFFLE; };
   const J = {
     pic:   { name: 'Picture mode', icon: 'picture', vals: ['Cinema', 'Vivid', 'Game', 'Standard'], i: 0 },
     snd:   { name: 'Sound output', icon: 'sound', vals: ['TV speakers', 'Soundbar (HDMI ARC)', 'Soundbar (optical)', 'Bluetooth'], i: store.get('snd', 1) },
@@ -1156,14 +1192,18 @@
     sep:   null,
     row1:  { name: 'Row 1 name', vals: ['Favorites', 'Pinned', 'My apps', 'Quick launch', 'Most used', 'Custom…'], i: store.get('row1n', 0), custom: store.get('row1c', '') },
     row2:  { name: 'Row 2 name', vals: ['Jump back in', 'Recently used', 'Recent', 'Back to it', 'Last opened', 'Custom…'], i: store.get('row2n', 0), custom: store.get('row2c', '') },
-    acc:   { name: 'Accent color', vals: ACCENTS.map(a => a[0]), i: store.get('acc', 0) },
+    theme: { name: 'Theme', vals: THEMES.map(t => t.name), i: 0 },
+    acc:   { name: 'Accent color', vals: ACCENTS.map(a => a[0]), i: savedAccent() },
     away:  { name: 'Away screen', vals: ['1 min', '3 min', '5 min', '10 min'], i: [0, 1, 2, 3].includes(store.get('away', 2)) ? store.get('away', 2) : 2 },
+    saver: { name: 'Screen saver', vals: SAVERS.map(s => s[0]), i: savedSaver() },
+    sclock: { name: 'Screen saver clock', vals: ['On', 'Off'], i: store.get('saver-clock', 0) === 1 ? 1 : 0 },
+    secs:  { name: 'Clock seconds', vals: ['On', 'Off'], i: store.get('secs', 0) === 1 ? 1 : 0 },
     lite:  { name: 'Lite mode', vals: ['Off', 'On'], i: 0 },
-    lime:  { name: 'Lime mode', vals: ['Off', 'On'], i: 0 },
     ext:   { name: 'Online extras', vals: ['Open'], i: 0 },
     setup: { name: 'Setup', vals: ['Run again'], i: 0 },
   };
   const jump = $('jump'), jList = $('jList');
+  J.hid = { name: 'Hidden apps', vals: ['None'], i: 0, list: [] };   // filled in drawJump: left and right pick, OK shows it again
   J.order = { name: 'App order', vals: ['Reset'], i: 0 };
   J.about = { name: 'About', vals: ['Home Deck'], i: 0 };
   if (NATIVE) {   // a home screen app can't change the picture, sound or sleep timer itself, so these open the TV's own settings
@@ -1172,14 +1212,41 @@
     delete J.sleep;
     J.music = { name: 'Music bar', vals: [NATIVE.nowPlaying().access ? 'On' : 'Off // OK to turn on'], i: 0, open: 'listener' };
     J.tv = { name: 'All TV settings', vals: ['Open'], i: 0, open: 'all' };
+    J.homekey = { name: 'Home button', vals: ['Off'], i: 0 };   // filled in drawJump from the helper's real state
   }
-  let jumpOpen = false, beforeJump = null;
+  const topPopup = () => popups[popups.length - 1] || null;
+  const isOpen = id => popups.some(l => l.id === id);
+  const LAYERS = { jump: { el: jump, onOpen: () => { jump.classList.add('on'); drawJump(); TV.focus(jList.querySelector('.jl')); }, onClose: () => { jump.classList.remove('on'); jList.innerHTML = ''; } } };
+  function openLayer(id) {   // each pop-up keeps the controls it took the remote from, and gives them back on close
+    const entry = { id, back: cur, saved: [...stage.querySelectorAll('[data-f]')].filter(el => !LAYERS[id].el.contains(el)) };
+    entry.saved.forEach(el => el.removeAttribute('data-f'));
+    popups.push(entry);
+    LAYERS[id].onOpen();
+  }
+  function closeLayer(id) {
+    const i = popups.map(l => l.id).lastIndexOf(id);
+    if (i < 0) return;
+    const entry = popups.splice(i, 1)[0];
+    LAYERS[id].onClose();
+    entry.saved.forEach(el => el.isConnected && el.setAttribute('data-f', ''));
+    const back = LAYERS[id].back ? LAYERS[id].back() : entry.back;
+    cur = null;
+    if (popups.length) { if (back?.isConnected) TV.focus(back); return; }   // the keyboard over another pop-up: back to the control that opened it
+    arm(); renderLive(); arm();
+    TV.focus(back?.isConnected && back.hasAttribute('data-f') ? back : stage.querySelector('.section:not(.is-off) [data-f]'));
+  }
+  function closeAll() { while (popups.length) closeLayer(topPopup().id); }
   function drawJump(keep) {
     J.inp.vals = ['Home', ...switchable().map(p => `HDMI ${p.n}${portName(p) !== `HDMI ${p.n}` ? ' // ' + portName(p) : ''}`), 'Live TV'];
     J.inp.i = Math.min(J.inp.i, J.inp.vals.length - 1);
+    J.hid.list = APPS.map((_, i) => i).filter(isHidden);
+    J.hid.vals = J.hid.list.length ? J.hid.list.map(i => `${APPS[i].name} // OK to show`) : ['None'];
+    J.hid.i = Math.min(J.hid.i, J.hid.vals.length - 1);
+    if (J.homekey) J.homekey.vals = [NATIVE.homeHelper() ? 'Opens Home Deck // OK to turn off' : 'Off // OK to turn on'];
+    J.about.vals = [UPD.latest && newer(UPD.latest, VER) ? `v${UPD.latest} is out` : 'Home Deck'];
     jList.innerHTML = Object.entries(J).map(([id, o]) => !o ? '<div class="jump__sep"></div>' : `
-      <div class="jl hd-frame" data-jl="${id}"${jumpOpen ? ' data-f' : ''}>
-        <span class="jl__ico">${o.icon ? `<img src="${ICON(o.icon, '-mini')}" alt="">` : id === 'acc' ? `<span class="jl__sw" style="--sw:${ACCENTS[o.i][1]}"></span>` : '<i></i>'}</span>
+      <div class="jl hd-frame" data-jl="${id}"${isOpen('jump') ? ' data-f' : ''}>
+        <span class="jl__ico">${o.icon ? `<img src="${ICON(o.icon, '-mini')}" alt="">` : id === 'acc' ? `<span class="jl__sw" style="--sw:${swatch(o.i)}"></span>` : '<i></i>'}</span>
         <span class="jl__name">${o.name}</span>
         <span class="jl__val">${o.vals.length > 1 ? '<span class="arr">&lsaquo;</span>' : ''}${esc(valText(o))}${o.vals.length > 1 ? '<span class="arr">&rsaquo;</span>' : ''}</span>
       </div>`).join('');
@@ -1191,31 +1258,46 @@
   const valText = o => o.vals[o.i] === 'Custom…' ? (o.custom ? `"${o.custom}"` : 'Custom… (OK to type)') : o.vals[o.i];
   function applyRows() { $('name-fav').textContent = rowName(J.row1); $('name-cw').textContent = rowName(J.row2); applyAccent(J.acc.i); }
   applyRows();
+  setTheme(store.get('theme', 0), true);
   function openJump() {
-    if (jumpOpen || trapped) return;
+    if (popups.length) return;
     closeOpts(false);
-    jumpOpen = true; beforeJump = cur; trap(jump);
-    jump.classList.add('on'); drawJump();
-    TV.focus(jList.querySelector('.jl')); HD.glitch(jump);
+    openLayer('jump');
+    HD.glitch(jump);
   }
   function closeJump() {
-    if (!jumpOpen) return;
-    jumpOpen = false; jump.classList.remove('on'); jList.innerHTML = '';
-    untrap(beforeJump);
+    if (!isOpen('jump')) return;
+    closeLayer('jump');
   }
   function stepJump(id, d) {
     const o = J[id]; o.i = (o.i + d + o.vals.length) % o.vals.length;
     if (id === 'row1' || id === 'row2') { store.set(id + 'n', o.i); applyRows(); }
-    if (id === 'acc') { store.set(id, o.i); applyRows(); }
+    if (id === 'acc') { store.set('accent', o.i); applyRows(); }
     if (id === 'snd') store.set('snd', o.i);
     if (id === 'away') { store.set('away', o.i); IDLE = 60000 * AWAY_MIN[o.i]; poke(); }
+    if (id === 'saver') store.set('saver', o.i);
+    if (id === 'sclock') store.set('saver-clock', o.i);
+    if (id === 'secs') { store.set('secs', o.i); tick(); }
     if (id === 'lite') { setLite(o.i === 1); return; }
-    if (id === 'lime') { setLime(o.i === 1); return drawJump(id); }
+    if (id === 'theme') { setTheme(o.i); return drawJump(id); }
     drawJump(id);
   }
   function okJump(id) {
     const o = J[id];
-    if (id === 'about') { closeJump(); return toast('area', 'About', 'Home Deck v0.1', 'Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.', 15000); }
+    if (id === 'about') {
+      closeJump();
+      const up = UPD.latest && newer(UPD.latest, VER) ? ` Home Deck v${UPD.latest} is out: get it from glidian.dev/home-deck.` : '';
+      return toast('area', 'About', `Home Deck v${VER}`, 'Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.' + up, 15000);
+    }
+    if (id === 'hid') { const i = J.hid.list[J.hid.i]; if (i == null) return; unhideApp(i); return drawJump('hid'); }
+    if (id === 'homekey') {
+      const on = !NATIVE.homeHelper(), r = NATIVE.setHomeHelper(on);
+      if (r === 'grant') { closeJump(); return toast('area', 'Home button', 'One adb command first', `Run ${NATIVE.homeHelperCommand()} once, then turn it on here.`, 20000); }
+      toast('job', 'Home button', on ? 'Opens Home Deck now' : 'Back to normal', on
+        ? 'Home opens Home Deck, even where Google TV keeps its own home screen. Holding Home and repeating volume may not work while it is on.'
+        : 'The Home button does what the TV does by itself again.', 9000);
+      return drawJump('homekey');
+    }
     if (id === 'order') { closeJump(); store.set('order', {}); renderApps(); arm(); return toast('job', 'Apps', 'Order reset', 'Each group is back in its usual order.'); }
     if (o.open) {
       closeJump();
@@ -1247,29 +1329,27 @@
 
   /* ---- input detected: an incoming call in the corner ---- */
   const call = $('call'), callGo = $('callGo'), callNo = $('callNo');
-  let callOpen = false, callPort = null, beforeCall = null;
+  let callPort = null;
+  LAYERS.call = { el: call, onOpen: () => { call.classList.add('on'); callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', ''); TV.focus(callGo); },
+    onClose: () => { call.classList.remove('on'); callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus'); callPort.signal = true; callPort.t = Date.now(); } };
   function incoming(p = PORTS[2]) {
-    if (!p || callOpen || trapped || p.arc) return;
+    if (!p || popups.length || p.arc) return;
     closeOpts(false);
-    callOpen = true; callPort = p; beforeCall = cur;
+    callPort = p;
     $('callPort').firstChild.textContent = `Incoming // HDMI ${p.n}`;
     $('callName').textContent = portName(p); $('callImg').src = ICON(p.emblem, '-bg');
-    call.classList.add('on'); trap(call);
-    callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', '');
-    TV.focus(callGo);
+    openLayer('call');
   }
   function endCall(go) {
-    if (!callOpen) return;
-    callOpen = false; call.classList.remove('on');
-    callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus');
-    callPort.signal = true; callPort.t = Date.now();
-    untrap(beforeCall);
+    if (!isOpen('call')) return;
+    closeLayer('call');
     if (go) switchPort(callPort);
   }
 
   /* ---- options (hold OK): apps and inputs ---- */
   const opts = $('opts'), oList = $('oList');
-  let optsOpen = false, optsFor = null, beforeOpts = null;
+  let optsFor = null, beforeOpts = null;
+  LAYERS.opts = { el: opts, back: () => beforeOpts, onOpen: () => {}, onClose: () => { opts.classList.remove('on'); oList.innerHTML = ''; } };
   const BUILT_IN = ['Play Store', 'Media Player'];
   function optItems() {
     if (optsFor.port) {
@@ -1283,6 +1363,9 @@
       { id: 'open', label: 'Open' },
       { id: 'pin', label: pinned ? 'Unpin' : 'Pin to favorites', why: !pinned && !favs.includes(null) ? 'Favorites are full. Unpin one first.' : null },
       { id: 'move', label: 'Move', why: beforeOpts?.closest('#fav, #apps') ? null : 'Move it in Favorites or in Apps.' },
+      { id: 'aname', label: 'Rename' },
+      ...(APPS[app].name !== APPS[app].base ? [{ id: 'aorig', label: 'Original name' }] : []),
+      { id: 'hide', label: 'Hide' },
       { id: 'info', label: 'Info' },
       { id: 'del', label: 'Uninstall', why: (NATIVE ? APPS[app].system : BUILT_IN.includes(APPS[app].name)) ? 'Built in. It can\'t be removed.' : null },
     ];
@@ -1297,23 +1380,56 @@
     if (again) { cur = null; TV.focus(again); }
   }
   function openOpts() {
-    if (!cur || optsOpen || trapped) return;
+    if (!cur || popups.length) return;
     const d = cur.dataset;
     if (d.app == null && !d.port) return;
-    optsFor = d.app != null ? { app: +d.app } : { port: d.port }; optsOpen = true; beforeOpts = cur;
+    optsFor = d.app != null ? { app: +d.app } : { port: d.port }; beforeOpts = cur;
     $('oTitle').textContent = 'Options // ' + (d.app != null ? APPS[+d.app].name : portName(PORTS.find(x => x.id === d.port)));
     const sr = stage.getBoundingClientRect(), kk = sr.width / 1920, cr = cur.getBoundingClientRect();
     const x = (cr.left - sr.left) / kk, ty = (cr.top - sr.top) / kk;
-    trap(opts); drawOpts();
+    openLayer('opts'); drawOpts();
     opts.style.left = Math.max(96, Math.min(1824 - 520, x)) + 'px';
     opts.classList.add('on');
     opts.style.top = Math.max(190, ty - opts.offsetHeight - 18) + 'px';
     TV.focus(oList.querySelector('[data-f]')); $('oWhy').textContent = '';
   }
   function closeOpts(refocusIt = true) {
-    if (!optsOpen) return;
-    optsOpen = false; opts.classList.remove('on'); oList.innerHTML = '';
-    untrap(refocusIt ? beforeOpts : beforeOpts);
+    if (!isOpen('opts')) return;
+    closeLayer('opts');
+  }
+  // after a rename or a hide the tiles are drawn again, so focus goes to the app's new tile, or a neighbor of the old one
+  const tileOf = app => app == null ? null : stage.querySelector(`.section:not(.is-off) [data-app="${app}"]`);
+  function landOn(...apps) {
+    arm(); cur = null;
+    TV.focus(apps.map(tileOf).find(Boolean) || stage.querySelector('.section:not(.is-off) [data-f]'));
+  }
+  // Rename: the app's name everywhere in Home Deck (its tile caption, the readout, Jump back in, search). The app
+  // itself keeps its own name. Art tiles show the logo, so there the new name shows when the tile is selected.
+  function renameApp(app, text) {
+    closeOpts();
+    const a = APPS[app], k = appKey(a), t = (text || '').trim();
+    if (t && t !== a.base) RENAMED[k] = t; else delete RENAMED[k];
+    store.set('renamed', RENAMED);
+    a.name = RENAMED[k] || a.base;
+    renderAll(); landOn(app);
+    toast('job', 'Name', a.name, RENAMED[k] ? `Shown as "${a.name}" in Home Deck. The app keeps its own name.` : 'Back to its own name.');
+  }
+  // Hide: the app leaves Apps, Favorites, Jump back in and search, and stays installed. Jump To, Hidden apps brings it back.
+  function hideApp(app) {
+    const el = beforeOpts, near = el && [el.nextElementSibling, el.previousElementSibling].find(s => s?.dataset.app != null);
+    closeOpts();
+    const a = APPS[app];
+    if (!HIDDEN.includes(appKey(a))) HIDDEN.push(appKey(a));
+    store.set('hidden', HIDDEN);
+    if (favs.includes(app)) { favs[favs.indexOf(app)] = null; saveFavs(); }
+    renderAll(); landOn(near?.dataset.app);
+    toast('job', 'Hidden', a.name, 'It stays installed. Bring it back in Jump To, Hidden apps.');
+  }
+  function unhideApp(app) {
+    HIDDEN = HIDDEN.filter(k => k !== appKey(APPS[app]));
+    store.set('hidden', HIDDEN);
+    renderAll();
+    toast('job', 'Apps', `${APPS[app].name} is back`, 'It is in Apps again, in its usual group.');
   }
   // only one port can be the audio out; marking it moves the sound output to the soundbar over ARC
   function setArc(p, on) {
@@ -1340,7 +1456,7 @@
       if (id === 'rename' && ok && isCustom(names[p.n - 1])) return openKbd(`HDMI ${p.n} // name`, customNames[p.n - 1], t => {
         customNames[p.n - 1] = t; store.set('names-custom', customNames); renderInputs(); renderLive(); arm();
         $('oTitle').textContent = 'Options // ' + portName(p); drawOpts('rename'); });
-      if (id === 'rename') { stepName(p, dir); saved = saved.filter(x => x.isConnected); saved.push(...stage.querySelectorAll('#inp [data-fi]')); stage.querySelectorAll('#inp [data-fi]').forEach(x => x.removeAttribute('data-f')); beforeOpts = stage.querySelector(`#inp [data-port="${p.id}"]`); $('oTitle').textContent = 'Options // ' + portName(p); return drawOpts('rename'); }
+      if (id === 'rename') { stepName(p, dir); const o = topPopup(); o.saved = o.saved.filter(x => x.isConnected); o.saved.push(...stage.querySelectorAll('#inp [data-fi]')); stage.querySelectorAll('#inp [data-fi]').forEach(x => x.removeAttribute('data-f')); beforeOpts = stage.querySelector(`#inp [data-port="${p.id}"]`); $('oTitle').textContent = 'Options // ' + portName(p); return drawOpts('rename'); }
       closeOpts();
       if (id === 'switch') return switchPort(p);
       if (id === 'info') return openInfo({ port: p.id });
@@ -1353,11 +1469,15 @@
       else { favs[favs.indexOf(null)] = app; toast('job', 'Favorites', `${name} pinned`, 'It took the free spot.'); }
     }
     if (id === 'move') { const el = beforeOpts; closeOpts(); return startMove(cur && cur.dataset.app === el?.dataset.app ? cur : el); }
+    if (id === 'aname') return openKbd(`${name} // new name`, name, t => renameApp(app, t));
+    if (id === 'aorig') return renameApp(app, null);
+    if (id === 'hide') return hideApp(app);
     if (id === 'del') { if (NATIVE) NATIVE.uninstall(APPS[app].pkg); else toast('warn', 'Uninstall', `${name} stays`, 'This is a preview, so nothing is removed.'); }
     if (id === 'pin' || id === 'move') {
       saveFavs(); renderFavs();
-      optsOpen = false; opts.classList.remove('on'); oList.innerHTML = '';
-      trapped = false; saved = []; arm();
+      const o = popups.splice(popups.map(l => l.id).lastIndexOf('opts'), 1)[0]; LAYERS.opts.onClose();
+      o.saved.forEach(el => el.isConnected && el.setAttribute('data-f', ''));
+      arm();
       cur = null; TV.focus(stage.querySelector(`.section:not(.is-off) [data-app="${app}"]`) || $('fav').querySelector('[data-f]'));
       return;
     }
@@ -1396,12 +1516,13 @@
   }
   function endMove(place) {
     const { el, box, app } = moving, fav = box.id === 'fav';
+    box.classList.remove('has-moving');
     moving = null;
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     if (place && fav) { favs = [...box.children].map(t => t.dataset.app != null ? +t.dataset.app : null); saveFavs(); }
     if (place && !fav) {
       const order = store.get('order', {});
-      order[box.closest('.row').dataset.group] = [...box.children].map(t => APPS[+t.dataset.app].pkg || APPS[+t.dataset.app].name);
+      order[box.closest('.row').dataset.group] = [...box.children].map(t => appKey(APPS[+t.dataset.app]));
       store.set('order', order);
     }
     if (fav) renderFavs(); else renderApps();
@@ -1411,9 +1532,8 @@
 
   /* ---- Info as a scanner ---- */
   const info = $('info');
-  let infoOpen = false, beforeInfo = null;
+  LAYERS.info = { el: info, onOpen: () => {}, onClose: () => { info.hidden = true; $('iClose').removeAttribute('data-f'); } };
   function openInfo(o) {
-    infoOpen = true; beforeInfo = cur;
     const r = HD.rng(o.app != null ? APPS[o.app].name : o.port), num = (a, b) => a + Math.floor(r() * (b - a));
     let art, title, tags, glow;
     if (o.app != null) {
@@ -1437,7 +1557,7 @@
     setGlitchText($('iTitle'), title);
     $('iArt').innerHTML = art; $('iArt').style.setProperty('--glow', glow);
     $('iTags').innerHTML = tags.map(([k, v]) => `<span class="hd-tag"><span class="hd-tag__tick"></span>${k} <b>${esc(v)}</b></span>`).join('');
-    info.hidden = false; trap(info);
+    info.hidden = false; openLayer('info');
     // leader lines from points on the art to each tag
     const tagEls = [...$('iTags').children], box = info.querySelector('.info__box').getBoundingClientRect(), k = box.width / 1320;
     const pts = [[490, 170], [470, 250], [450, 320], [470, 400], [490, 470]];
@@ -1449,38 +1569,43 @@
     const sa = $('iArt'); sa.classList.remove('go'); void sa.offsetWidth; sa.classList.add('go');
     $('iClose').setAttribute('data-f', ''); TV.focus($('iClose')); HD.glitch($('iTitle'));
   }
-  function closeInfo() { if (!infoOpen) return; infoOpen = false; info.hidden = true; $('iClose').removeAttribute('data-f'); untrap(beforeInfo); }
+  function closeInfo() { if (!isOpen('info')) return; closeLayer('info'); }
 
   /* ---- Scan: search with a letter grid, typing or voice ---- */
   const search = $('search');
-  let searchOpen = false, query = '', beforeSearch = null;
+  let query = '';
+  LAYERS.search = { el: search, onOpen: () => { query = ''; $('sHeard').textContent = ''; search.hidden = false; drawSearch(); TV.focus(search.querySelector('.skey')); }, onClose: () => { search.hidden = true; search.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); } };
   const KEYS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
   $('sKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-key="${c}">${c}</button>`).join('') +
     '<button class="hd-btn skey skey--wide" type="button" data-key=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-key="DEL">Delete</button>';
   function drawSearch(keepFocus) {
     $('sField').innerHTML = query ? `${esc(query)}<span class="caret"></span>` : '<span class="caret"></span><span class="ph">Type an app name, or press Voice</span>';
-    const hits = APPS.map((a, i) => [a, i]).filter(([a]) => !query || a.name.toLowerCase().includes(query.toLowerCase().trim())).slice(0, 9);
+    const q = query.toLowerCase().trim();   // a renamed app is found by either name; hidden apps aren't found
+    const hits = APPS.map((a, i) => [a, i]).filter(([a, i]) => !isHidden(i) && (!q || a.name.toLowerCase().includes(q) || a.base.toLowerCase().includes(q))).slice(0, 9);
     $('sRes').innerHTML = hits.length ? hits.map(([, i]) => appTile(i, 'art--sm', 'data-res')).join('') : '<span class="search__none">No app by that name on this TV.</span>';
     search.querySelectorAll('.skey, #sMic, #sRes [data-fi]').forEach(el => el.setAttribute('data-f', ''));
     if (keepFocus && !keepFocus.isConnected) { cur = null; TV.focus(search.querySelector('.skey')); }
   }
   function openSearch() {
-    if (searchOpen || trapped) return;
-    searchOpen = true; beforeSearch = cur; query = ''; $('sHeard').textContent = '';
-    search.hidden = false; trap(search); drawSearch();
-    TV.focus(search.querySelector('.skey'));
+    if (popups.length) return;
+    openLayer('search');
   }
-  function closeSearch() { if (!searchOpen) return; searchOpen = false; search.hidden = true; search.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); untrap(beforeSearch); }
+  function closeSearch() { if (!isOpen('search')) return; closeLayer('search'); }
   function typeKey(c) { query = c === 'DEL' ? query.slice(0, -1) : (query + c).slice(0, 24); drawSearch(cur); }
   function voice() {
     if (NATIVE) { $('sHeard').textContent = 'Voice search is coming later. Type the name instead.'; return; }
     $('sHeard').innerHTML = '<span class="hd-wave" aria-hidden="true"><i style="--h:40%"></i><i style="--h:90%"></i><i style="--h:60%"></i><i style="--h:80%"></i></span> Listening...';
-    setTimeout(() => { if (!searchOpen) return; query = 'spot'; $('sHeard').textContent = 'Heard: "Spotify"'; drawSearch(cur); }, reduce ? 300 : 1300);
+    setTimeout(() => { if (!isOpen('search')) return; query = 'spot'; $('sHeard').textContent = 'Heard: "Spotify"'; drawSearch(cur); }, reduce ? 300 : 1300);
   }
 
   /* ---- first-run setup: favorites, color, input names ---- */
   const setup = $('setup');
-  let setupOpen = false, step = 0;
+  let step = 0;
+  LAYERS.setup = { el: setup, back: () => $('fav').querySelector('[data-fi]'), onOpen: () => {}, onClose: () => {
+    setup.hidden = true; setup.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
+    store.set('setup-done', true);
+    renderAll();
+  } };
   const STEP_T = [['Pick your favorites', 'Up to seven apps for the top row. OK picks or unpicks.'],
                   ['Pick a color', 'It tints the whole screen. You can change it later in Jump To.'],
                   ['Name your inputs', 'Left and right choose a name. Auto uses the name the device gives itself.'],
@@ -1490,16 +1615,15 @@
     $('stTitle').textContent = STEP_T[step][0]; $('stText').textContent = STEP_T[step][1];
     $('stBack').hidden = step === 0; $('stNext').textContent = step === 3 ? 'Done' : 'Next';
     if (step === 0) $('stBody').innerHTML = `<div class="setup__grid">${APPS.map((_, i) => appTile(i, 'art--xs' + (favs.includes(i) ? ' is-picked' : ''), 'data-pick').replace('data-app=', 'data-pickapp=')).join('')}</div>`;
-    if (step === 1) $('stBody').innerHTML = `<div class="tiles">${ACCENTS.map((a, n) => `<div class="sw${n === J.acc.i ? ' is-picked' : ''}" data-sw="${n}" style="--sw:${a[1]}">${a[0]}</div>`).join('')}</div>`;
+    if (step === 1) $('stBody').innerHTML = `<div class="tiles">${ACCENTS.map((a, n) => `<div class="sw${n === J.acc.i ? ' is-picked' : ''}" data-sw="${n}" style="--sw:${swatch(n)}">${a[0]}</div>`).join('')}</div>`;
     if (step === 2) $('stBody').innerHTML = `<div style="display:grid;gap:12px">${PORTS.map(p => `<div class="nl hd-frame" data-nl="${p.id}"><span class="nl__port">HDMI ${p.n}</span><span class="nl__val">${p.arc ? 'Audio out (ARC) // a sound output, set in Inputs' : `<span>&lsaquo;</span>${esc(nameLabel(names[p.n - 1], p.n))}${NAMES[names[p.n - 1]] === 'Auto' ? ` // ${esc(portName(p))}` : ''}<span>&rsaquo;</span>`}</span></div>`).join('')}</div>`;
     if (step === 3) { $('stBody').innerHTML = '<div id="exSetup"></div>'; drawEx($('exSetup')); }
     setup.querySelectorAll('#stBody [data-pick], #stBody [data-sw], #stBody [data-nl], #stBody [data-ex], .setup__foot .hd-btn:not([hidden])').forEach(el => el.setAttribute('data-f', ''));
     setup.querySelectorAll('.setup__foot .hd-btn[hidden]').forEach(el => el.removeAttribute('data-f'));
   }
   function openSetup() {
-    if (setupOpen) return;
-    if (trapped) return;
-    setupOpen = true; step = 0; setup.hidden = false; trap(setup); drawSetup();
+    if (popups.length) return;
+    step = 0; setup.hidden = false; openLayer('setup'); drawSetup();
     TV.focus(setup.querySelector('#stBody [data-f]'));
   }
   function setupGo(d) {
@@ -1508,10 +1632,8 @@
     drawSetup(); cur = null; TV.focus(setup.querySelector('#stBody [data-f]'));
   }
   function closeSetup(done) {
-    if (!setupOpen) return;
-    setupOpen = false; setup.hidden = true; setup.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
-    store.set('setup-done', true);
-    renderAll(); untrap($('fav').querySelector('[data-fi]'));
+    if (!isOpen('setup')) return;
+    closeLayer('setup');
     if (done) { toast('reward', 'Setup', 'All set', 'Run it again any time from Jump To.'); setTimeout(() => showHints(), 4000); }
     else showHints();
   }
@@ -1525,7 +1647,8 @@
 
   /* ---- on-screen keyboard: custom row and input names; arrows plus OK, or real typing; Back cancels ---- */
   const kbd = $('kbd');
-  let kbdOpen = false, kbdText = '', kbdCb = null, kbdBack = null, kbdSaved = [];
+  let kbdText = '', kbdCb = null;
+  LAYERS.kbd = { el: kbd, onOpen: () => {}, onClose: () => { kbd.hidden = true; kbd.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f')); } };
   $('kKeys').innerHTML = KEYS.map(c => `<button class="hd-btn skey" type="button" data-kkey="${c}">${c}</button>`).join('') +
     '<button class="hd-btn skey skey--wide" type="button" data-kkey=" ">Space</button><button class="hd-btn skey skey--wide" type="button" data-kkey="DEL">Delete</button>';
   function drawKbd() {
@@ -1542,19 +1665,14 @@
     drawKbd();
   }
   function openKbd(title, value, cb) {
-    kbdOpen = true; kbdText = value || ''; kbdCb = cb; kbdBack = cur;
+    openLayer('kbd'); kbdText = value || ''; kbdCb = cb;
     $('kTitle').textContent = title;
-    kbdSaved = [...stage.querySelectorAll('[data-f]')].filter(el => !kbd.contains(el));
-    kbdSaved.forEach(el => el.removeAttribute('data-f'));
     kbd.hidden = false; kbd.querySelectorAll('.skey, #kCancel, #kDone').forEach(el => el.setAttribute('data-f', ''));
     drawKbd(); cur = null; TV.focus(kbd.querySelector('.skey'));
   }
   function closeKbd(save) {
-    if (!kbdOpen) return;
-    kbdOpen = false; kbd.hidden = true;
-    kbd.querySelectorAll('[data-f]').forEach(el => el.removeAttribute('data-f'));
-    kbdSaved.forEach(el => el.isConnected && el.setAttribute('data-f', '')); kbdSaved = [];
-    cur = null; if (kbdBack?.isConnected) TV.focus(kbdBack);
+    if (!isOpen('kbd')) return;
+    closeLayer('kbd');
     const t = kbdText.trim();
     if (save && t) kbdCb(t);
   }
@@ -1638,12 +1756,42 @@
     WX.city = { name: c[0], lat: c[1], lon: c[2] }; WX.note = ''; store.set('wx-city', WX.city); drawWx();
     clearTimeout(cityTimer); cityTimer = setTimeout(wxFetch, 700);   // wait until the viewer stops on a city
   }
+  /* ---- Update check: off until switched on. Then, once a day, one question to GitHub: which version is the newest release?
+          Nothing is downloaded or installed; a newer one gets a note on screen and in About. The browser preview never asks. */
+  const UPD = { on: !!store.get('upd-on', false), latest: store.get('upd-latest', null), t: store.get('upd-t', 0) || 0, note: '' };
+  const newer = (a, b) => {   // is version a newer than version b ("0.3" vs "0.2.1")
+    const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let k = 0; k < Math.max(x.length, y.length); k++) { const d = (x[k] || 0) - (y[k] || 0); if (d) return d > 0; }
+    return false;
+  };
+  async function updCheck(force) {
+    if (!UPD.on || !NATIVE) return;                           // off: no network, ever
+    if (!force && Date.now() - UPD.t < 20 * 3600000) return;   // at most about once a day
+    try {
+      const r = await fetch('https://api.github.com/repos/glidiandev/home-deck/releases/latest',
+                            { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } });
+      if (!r.ok) throw new Error(r.status);
+      const v = String((await r.json()).tag_name || '').replace(/^v/i, '');
+      if (!/^\d+(\.\d+)*$/.test(v)) throw new Error('tag');
+      if (!UPD.on) return;                                     // switched off while waiting
+      UPD.t = Date.now(); UPD.latest = v; store.set('upd-t', UPD.t); store.set('upd-latest', v);
+      UPD.note = newer(v, VER) ? `Home Deck v${v} is out. Get it from glidian.dev/home-deck.` : `Up to date. v${VER} is the newest.`;
+      if (newer(v, VER) && store.get('upd-told', '') !== v) {   // say so once per new version
+        store.set('upd-told', v);
+        toast('reward', 'Update', `Home Deck v${v} is out`, 'Get it from glidian.dev/home-deck, or the releases page on GitHub.', 12000);
+      }
+    } catch { UPD.note = 'Could not reach GitHub. It tries again later.'; }
+    redrawEx('upd');
+  }
+  setTimeout(updCheck, 20000);
+  setInterval(updCheck, 3 * 3600000);
   function exLines() {
     const on = WX.on, cityName = WX.city?.name || 'Pick a city';
     return [
       { id: 'on', name: 'Weather', desc: 'Connects to Open-Meteo (open-meteo.com) for the forecast in your city. No account, no key.', val: on ? 'On' : 'Off', arrows: true },
       ...(on ? [{ id: 'city', sub: true, name: 'City', desc: WX.note || 'Left and right for a list; OK to type any city.', val: cityName, arrows: true },
                 { id: 'unit', sub: true, name: 'Units', desc: 'Fahrenheit or Celsius.', val: WX.unit === 'C' ? '°C' : '°F', arrows: true }] : []),
+      { id: 'upd', name: 'Update check', desc: UPD.on && UPD.note ? UPD.note : 'Asks GitHub (github.com) once a day for the newest version number. Nothing is installed by itself.', val: UPD.on ? 'On' : 'Off', arrows: true },
       { id: 'art', off: true, name: 'Show artwork', desc: 'Would connect to an online film and TV database for posters.', val: 'Coming later' },
       { id: 'voice', off: true, name: 'Voice search', desc: 'Would send your voice to a speech service to turn it into words.', val: 'Coming later' },
     ];
@@ -1657,10 +1805,11 @@
     const again = keep && host.querySelector(`[data-ex="${keep}"]`);
     if (again) { cur = null; TV.focus(again); }
   }
-  function redrawEx(keep) { if (exHost?.isConnected && (extrasOpen || setupOpen)) drawEx(exHost, keep || cur?.dataset.ex); }
+  function redrawEx(keep) { if (exHost?.isConnected && (isOpen('extras') || isOpen('setup'))) drawEx(exHost, keep || cur?.dataset.ex); }
   function exStep(id, d) {
     if (id === 'on') { WX.on = !WX.on; store.set('wx-on', WX.on); if (WX.on && !WX.city) setCity(CITIES[0]); else if (WX.on) wxFetch(); drawWx(); }
     if (id === 'unit') { WX.unit = WX.unit === 'F' ? 'C' : 'F'; store.set('wx-unit', WX.unit); drawWx(); }
+    if (id === 'upd') { UPD.on = !UPD.on; store.set('upd-on', UPD.on); UPD.note = UPD.on && NATIVE ? 'Checking...' : ''; if (UPD.on) updCheck(true); }
     if (id === 'city') {
       const i = CITIES.findIndex(c => c[0] === WX.city?.name);
       setCity(CITIES[(i + d + CITIES.length) % CITIES.length]);
@@ -1672,16 +1821,14 @@
     exStep(id, 1);
   }
   const extras = $('extras'), exList = $('exList');
-  let extrasOpen = false, beforeExtras = null;
+  LAYERS.extras = { el: extras, onOpen: () => { extras.hidden = false; drawEx(exList); TV.focus(exList.querySelector('[data-f]')); }, onClose: () => { extras.hidden = true; exList.innerHTML = ''; } };
   function openExtras() {
-    if (extrasOpen || trapped) return;
-    extrasOpen = true; beforeExtras = cur; trap(extras);
-    extras.hidden = false; drawEx(exList);
-    TV.focus(exList.querySelector('[data-f]'));
+    if (popups.length) return;
+    openLayer('extras');
   }
   function closeExtras() {
-    if (!extrasOpen) return;
-    extrasOpen = false; extras.hidden = true; exList.innerHTML = ''; untrap(beforeExtras);
+    if (!isOpen('extras')) return;
+    closeLayer('extras');
   }
   drawWx();
 
@@ -1758,10 +1905,10 @@
     $('rFreq').innerHTML = t + (tot ? `<span class="radio__total"> / ${tot}</span>` : '');
   }
   function drawRadio() {
-    const a = APPS[NOW.app], on = !NATIVE || !!NOW.track, rp = $('rPlay');
+    const a = APPS[NOW.app], on = !NATIVE || !!NOW.track, rp = $('rPlay'), held = popups[0];   // the bottom pop-up holds the deck's controls
     $('radio').style.visibility = on ? '' : 'hidden';
-    if (!on) { rp.removeAttribute('data-f'); saved = saved.filter(x => x !== rp); if (cur === rp) { cur = null; TV.focus(stage.querySelector('.section:not(.is-off) [data-f]')); } }
-    else if (trapped) { if (!saved.includes(rp)) saved.push(rp); } else rp.setAttribute('data-f', '');
+    if (!on) { rp.removeAttribute('data-f'); if (held) held.saved = held.saved.filter(x => x !== rp); if (cur === rp) { cur = null; TV.focus(stage.querySelector('.section:not(.is-off) [data-f]')); } }
+    else if (held) { if (!held.saved.includes(rp)) held.saved.push(rp); } else rp.setAttribute('data-f', '');
     $('radio').style.setProperty('--app', a ? a.glow : '#5ef6ff');
     $('radio').classList.toggle('no-station', !NOW.station);   // no album: the title line sits alone, the app named once
     $('rApp').textContent = a ? a.name : NOW.label; $('rStation').textContent = NOW.station; $('rTrack').textContent = NOW.track; $('rArtist').textContent = NOW.artist;
@@ -1805,7 +1952,7 @@
     if (el.id === 'sMic') return voice();
     if (d.res != null) return setTimeout(closeSearch, 50);
     if (d.pick != null) return pickFav(el);
-    if (d.sw != null) { J.acc.i = +d.sw; store.set('acc', J.acc.i); applyRows(); setup.querySelectorAll('.sw').forEach(s => s.classList.toggle('is-picked', s === el)); return; }
+    if (d.sw != null) { J.acc.i = +d.sw; store.set('accent', J.acc.i); applyRows(); setup.querySelectorAll('.sw').forEach(s => s.classList.toggle('is-picked', s === el)); return; }
     if (d.ex) return setTimeout(() => exOk(d.ex));
     if (d.nl) {
       const p = PORTS.find(x => x.id === d.nl);
@@ -1841,7 +1988,7 @@
     const d = new Date(), h = d.getHours();
     const hm = `${h % 12 || 12}:${two(d.getMinutes())}`, ap = h < 12 ? 'am' : 'pm';
     const date = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-    $('clkHM').textContent = hm; $('clkS').textContent = ':' + two(d.getSeconds()); $('clkAP').textContent = ap;
+    $('clkHM').textContent = hm; $('clkS').textContent = J.secs.i ? '' : ':' + two(d.getSeconds()); $('clkAP').textContent = ap;
     $('clkDate').textContent = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     if (d.getSeconds() % 30 === 0) drawWx();
     $('sbHM').textContent = hm; $('sbAP').textContent = ap; $('sbDate').textContent = date;
@@ -1855,14 +2002,20 @@
   const spot = () => { sbPos.style.transform = `translate(${80 + Math.random() * 1000}px, ${80 + Math.random() * 560}px)`; };
   function drift() { if (reduce) return spot(); sbPos.classList.add('fade'); setTimeout(() => { spot(); sbPos.classList.remove('fade'); }, 650); }
   function sleep() {
-    if (sleeping || setupOpen) return;
+    if (sleeping || isOpen('setup')) return;
     if (moving) endMove(false);
-    endCall(false); closeOpts(); closeJump(); closeInfo(); closeSearch(); endLink();
+    closeAll();   // every pop-up on the stack, top first (the keyboard before the one under it), without saving
+    endLink();
     document.querySelectorAll('.hd-toast').forEach(t => t.remove());
     sleeping = true; spot(); standby.classList.add('on');
     driftTimer = setInterval(drift, 20000);
+    // the clock, a rainy city full screen over everything, or Shuffle; and the time, unless the screen saver clock is off
+    away = AwayScenes.start({ host: standby, clockEl: sbPos, frameClass: 'standby__rain', saver: J.saver.i,
+                              clockOn: J.sclock.i === 0, light: isLite(), reduce });
   }
-  function wake() { sleeping = false; clearInterval(driftTimer); standby.classList.remove('on'); showHints(); }
+  let away = null;
+  const endRain = () => { if (away) { away.stop(); away = null; } sbPos.hidden = false; };
+  function wake() { sleeping = false; clearInterval(driftTimer); endRain(); standby.classList.remove('on'); showHints(); }
   const poke = () => { clearTimeout(idleTimer); idleTimer = setTimeout(sleep, IDLE); };
   poke();
 
@@ -1903,7 +2056,8 @@
       else if (back) endMove(false);
       return;
     }
-    if (kbdOpen) {
+    const layer = topPopup()?.id;   // the pop-up on top gets the keys (the stack is [], [X] or [X, kbd])
+    if (layer === 'kbd') {
       if (k === 'Escape') { stop(); return closeKbd(false); }
       if (k === 'Backspace') { stop(); return kType('DEL'); }
       if (e.key.length === 1 && /^[a-zA-Z0-9 +&'.-]$/.test(e.key) && !e.ctrlKey && !e.metaKey) { stop(); return kType(e.key, true); }
@@ -1912,7 +2066,7 @@
       if (k === 'ArrowDown' && nothingBelow($('kKeys'), cur)) { stop(); return TV.focus($('kDone')); }
       return;
     }
-    if (setupOpen) {
+    if (layer === 'setup') {
       if (back) { stop(); return closeSetup(false); }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && cur?.dataset.ex) { stop(); return exStep(cur.dataset.ex, k === 'ArrowLeft' ? -1 : 1); }
       if ((k === 'ArrowLeft' || k === 'ArrowRight') && cur?.dataset.nl) { stop(); stepName(PORTS.find(p => p.id === cur.dataset.nl), k === 'ArrowLeft' ? -1 : 1); return drawSetupKeep(cur.dataset.nl); }
@@ -1922,20 +2076,20 @@
       if (k === 'ArrowDown' && cur?.closest('#stBody') && nothingBelow($('stBody'), cur)) { stop(); return TV.focus($('stNext')); }
       return;
     }
-    if (searchOpen) {
+    if (layer === 'search') {
       if (k === 'Escape') { stop(); return closeSearch(); }
       if (k === 'Backspace') { stop(); return typeKey('DEL'); }
       if (/^[a-z0-9 ]$/.test(k) && !e.ctrlKey && !e.metaKey) { stop(); return typeKey(k.toUpperCase()); }
       return;
     }
-    if (infoOpen) { if (back) { stop(); closeInfo(); } else if (k.startsWith('Arrow')) stop(); return; }
-    if (callOpen) {
+    if (layer === 'info') { if (back) { stop(); closeInfo(); } else if (k.startsWith('Arrow')) stop(); return; }
+    if (layer === 'call') {
       if (k === 'ArrowLeft' || k === 'ArrowRight') { stop(); TV.focus(cur === callGo ? callNo : callGo); }
       else if (back) { stop(); endCall(false); }
       else if (k.startsWith('Arrow')) stop();
       return;
     }
-    if (extrasOpen) {
+    if (layer === 'extras') {
       const items = [...exList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if ((k === 'ArrowLeft' || k === 'ArrowRight') && items[i]) { stop(); exStep(items[i].dataset.ex, k === 'ArrowLeft' ? -1 : 1); }
@@ -1943,7 +2097,7 @@
       else if (k === 'Enter' && e.repeat) stop();
       return;
     }
-    if (jumpOpen) {
+    if (layer === 'jump') {
       const items = [...jList.querySelectorAll('.jl')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if (k === 'ArrowLeft' || k === 'ArrowRight') { stop(); if (i >= 0 && items[i].dataset.jl) stepJump(items[i].dataset.jl, k === 'ArrowLeft' ? -1 : 1); }
@@ -1951,7 +2105,7 @@
       else if (k === 'Enter' && e.repeat) stop();
       return;
     }
-    if (optsOpen) {
+    if (layer === 'opts') {
       const items = [...oList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
       if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); $('oWhy').textContent = ''; cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
       else if ((k === 'ArrowLeft' || k === 'ArrowRight') && ['rename', 'arc'].includes(items[i]?.dataset.opt)) { stop(); runOpt(items[i], k === 'ArrowLeft' ? -1 : 1, false); }
@@ -1971,7 +2125,7 @@
     if (back) { stop(); if (!e.repeat && !escTimer) escTimer = setTimeout(() => { escTimer = null; openJump(); }, 480); return; }
     if (k === 'q' || k === 'e') { stop(); switchSection(sec + (k === 'q' ? -1 : 1), true); }
     else if (k === 'j' || k === '*' || k === 'ContextMenu') { stop(); openJump(); }
-    else if (k === 'h') { stop(); setLime(!isLime()); }
+    else if (k === 'h') { stop(); setTheme((J.theme.i + 1) % THEMES.length); }
     else if (k === 'l') { stop(); setLite(!isLite()); }
     else if (k === 'a') { stop(); incoming(); }
     else if (k === 's') { stop(); sleep(); }
@@ -2003,8 +2157,8 @@
   stage.addEventListener('click', e => {
     if (booting) { e.stopImmediatePropagation(); finishBoot(); }
     else if (inputLink) { e.stopImmediatePropagation(); endLink(); }
-    else if (optsOpen && !e.target.closest('.opts')) { e.stopImmediatePropagation(); closeOpts(); }
-    else if (jumpOpen && !e.target.closest('.jump')) { e.stopImmediatePropagation(); closeJump(); }
+    else if (isOpen('opts') && !e.target.closest('.opts')) { e.stopImmediatePropagation(); closeOpts(); }
+    else if (isOpen('jump') && !e.target.closest('.jump')) { e.stopImmediatePropagation(); closeJump(); }
   }, true);
   // a port tile's OK goes through tv.js as a click; tv.js only launches data-app tiles, so ports are handled in tv:select above
 

@@ -29,7 +29,7 @@ A 45-second tour of the favorites, Apps, moving an app, Inputs and Jump To: [wat
   its art fading in behind.
 - **Music bar.** What's playing, the artist, the track time, and play/pause. Long titles scroll like a car stereo.
 - **Jump To.** Hold Back anywhere for the quick panel: the TV's picture and sound settings, inputs, the names of
-  the two rows, a theme (Normal, Lime or Violet), an accent color that tints everything, how soon the away screen comes on, what it shows and whether it shows the time, clock seconds, Lite mode, online extras,
+  the two rows, a theme (Normal, Lime, Violet, Ice, Sunset or Mono), an accent color that tints everything, how soon the away screen comes on, what it shows and whether it shows the time, clock seconds, Lite mode, online extras,
   setup, hidden apps, app order, the Home button helper and About.
 - **Away screen.** After 5 minutes of nothing, the screen dims to a clock that moves every 20 seconds, so nothing
   burns in. Pick 1, 3, 5 or 10 minutes in Jump To.
@@ -40,7 +40,8 @@ A 45-second tour of the favorites, Apps, moving an app, Inputs and Jump To: [wat
 - **Shuffle.** The away screen moves between the clock, Window and Downpour every 10 minutes, starting somewhere new
   each time. It's what you get until you pick one yourself. In Lite mode it keeps to the clock.
 - **No clock, if you like.** Turn off Jump To > Screen saver clock and the away screen shows no time at all: the
-  rain has no clock in it, Shuffle only uses the rain, and Clock becomes a plain dark screen.
+  rain has no clock in it, Shuffle only uses the rain (in Lite mode, a plain dark screen), and Clock becomes a plain
+  dark screen.
 - **Screen saver.** The same away screen as your TV's screen saver, for when you're in another app. See
   [Screen saver](#screen-saver).
 - **First-run setup.** Pick your favorites, a color and names for your inputs. Skip it if you like; it's in Jump To
@@ -168,8 +169,21 @@ Home Deck is installed like any other app, so a few things stay off limits:
 
 ## Install
 
-Home Deck isn't on the Play Store; you install it yourself with adb. You'll need a computer with
-[adb](https://developer.android.com/tools/releases/platform-tools) on the same network as the TV.
+Home Deck isn't on the Play Store; you install it yourself, either from the TV with the Downloader app or from a
+computer with adb. Making it what the Home button opens usually takes adb either way.
+
+### With Downloader
+
+In the [Downloader](https://play.google.com/store/apps/details?id=com.esaba.downloader) app, enter the code
+**5490318**. It downloads the newest release from this page. Allow Downloader to install apps when the TV asks, and
+press **Done** at the end (**Open** is grayed out on some TVs).
+
+Enter the same code again to update; your favorites and settings stay.
+
+### With adb
+
+You'll need a computer with [adb](https://developer.android.com/tools/releases/platform-tools) on the same network as
+the TV.
 
 1. On the TV, turn on Developer options (Settings > Device Preferences > About, press OK on **Build** seven times),
    then turn on **USB debugging** or **Network debugging** in Developer options.
@@ -184,7 +198,9 @@ Home Deck isn't on the Play Store; you install it yourself with adb. You'll need
    ```
    Updating works the same way: `adb install -r homedeck.apk` keeps your favorites and settings.
 
-Home Deck now shows up in your apps. To make it what the Home button opens:
+### Make it your home screen
+
+Home Deck now shows up in your apps. To make it what the Home button opens, run this from the computer:
 
 ```bash
 adb shell cmd package set-home-activity dev.glidian.homedeck/.HomeActivity

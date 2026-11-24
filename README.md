@@ -106,7 +106,7 @@ computer with adb. Making it what the Home button opens usually takes adb either
 In the [Downloader](https://play.google.com/store/apps/details?id=com.esaba.downloader) app, open
 `github.com/dineshalphaque/AlphaDeck/releases/latest` and pick the `-release.apk`. Allow Downloader to install apps
 when the TV asks, and press **Done** at the end (**Open** is grayed out on some TVs). Install a newer release the same
-way to update; your favorites and settings stay. (Home Deck's Downloader code installs Home Deck, not Alpha Deck.)
+way to update; your favorites and settings stay.
 
 ### With adb
 

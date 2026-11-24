@@ -11,7 +11,7 @@
   <a href="#install">Install</a> · <a href="#what-it-does">What it does</a> · <a href="#using-it">Using it</a> · <a href="#build-from-source">Build from source</a>
 </p>
 
-A lightweight launcher and home screen for Google TV and Android TV, based on [Home Deck](https://github.com/glidiandev/home-deck) by
+A lightweight launcher and home screen for Google TV and Android TV, based on [Home Deck](https://github.com/glidiandev/home-deck) v0.3 by
 Glidian. Your apps as big glowing tiles, the art of whatever you're on filling the background, a music bar that shows
 what's playing, and your HDMI inputs named after the devices on them. No ads, no recommendation rows, and it works
 offline.
@@ -37,11 +37,11 @@ From Home Deck:
 - **Apps**, grouped by kind, with tile art for popular apps and a colored badge for everything else.
 - **Inputs**: your HDMI ports with their device names, Live TV, Network and Settings.
 - **Music bar** showing what's playing, with play/pause.
-- **Jump To** (hold Back): picture and sound settings, inputs, theme (Normal, Lime or Violet), accent color,
+- **Jump To** (hold Back): picture and sound settings, inputs, theme (Normal, Lime, Violet, Ice, Sunset or Mono), accent color,
   clock seconds, away screen, screen saver, Lite mode, online extras, setup, hidden apps, app order, Home button and
   About.
 - **Away screen and screen saver**: a dim drifting clock, the rainy neon city, or Shuffle between them, with or
-  without the time.
+  without the time (with the clock off, Lite mode shows a plain dark screen).
 - **Hide and rename apps** from the Hold OK menu.
 - **Home button helper** (optional, see below) for Google TVs that keep their own home screen.
 - **Optional online extras**: weather from Open-Meteo and a daily update check for new Home Deck releases, both off
@@ -98,8 +98,20 @@ adb shell settings put secure screensaver_components com.alphaque.alphadeck/dev.
 
 ## Install
 
-Alpha Deck isn't on the Play Store; you install it yourself with adb. You'll need a computer with
-[adb](https://developer.android.com/tools/releases/platform-tools) on the same network as the TV.
+Alpha Deck isn't on the Play Store; you install it yourself, either from the TV with the Downloader app or from a
+computer with adb. Making it what the Home button opens usually takes adb either way.
+
+### With Downloader
+
+In the [Downloader](https://play.google.com/store/apps/details?id=com.esaba.downloader) app, open
+`github.com/dineshalphaque/AlphaDeck/releases/latest` and pick the `-release.apk`. Allow Downloader to install apps
+when the TV asks, and press **Done** at the end (**Open** is grayed out on some TVs). Install a newer release the same
+way to update; your favorites and settings stay. (Home Deck's Downloader code installs Home Deck, not Alpha Deck.)
+
+### With adb
+
+You'll need a computer with [adb](https://developer.android.com/tools/releases/platform-tools) on the same network as
+the TV.
 
 1. On the TV, turn on Developer options (Settings > Device Preferences > About, press OK on **Build** seven times),
    then turn on **USB debugging** or **Network debugging** in Developer options.
@@ -115,7 +127,9 @@ Alpha Deck isn't on the Play Store; you install it yourself with adb. You'll nee
    ```
    Updating works the same way: `adb install -r alpha-deck-buildN-release.apk` keeps your favorites and settings.
 
-Alpha Deck now shows up in your apps. To make it what the Home button opens:
+### Make it your home screen
+
+Alpha Deck now shows up in your apps. To make it what the Home button opens, run this from the computer:
 
 ```bash
 adb shell cmd package set-home-activity com.alphaque.alphadeck/dev.glidian.homedeck.HomeActivity

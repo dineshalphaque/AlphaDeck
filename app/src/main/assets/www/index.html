@@ -1009,7 +1009,7 @@
       if (a.plain) { const g = await mainColor(a.plain); if (run !== badgeRun) return; a.glow = g; a.bgImg = a.plain; }
       else { const g = hashCol(a.base); await fontsReady; if (run !== badgeRun) return; a.glow = g; a.bgImg = initialsArt(initials(a.name), g); }
       a.fg = a.glow;
-    })).then(() => { if (run !== badgeRun) return; const f = cur; renderFavs(); renderApps(); arm(); refocus(f); });
+    })).then(() => { if (run !== badgeRun) return; const f = cur; renderFavs(); renderApps(); arm(); refocus(f); repointBacks(); });
   }
   finishBadges();
 
@@ -1894,8 +1894,15 @@
   }
   // the IconPack picker: same popup, rows and focus as Online extras; OK picks, Back closes, both return to the settings menu
   const packs = $('packs'), pkList = $('pkList');
-  // back: () => null: on close, focus goes to the first control of the active section, not to the tile Jump To was opened from
-  LAYERS.packs = { el: packs, back: () => null,
+  function repointBacks() {   // a re-render replaces the tiles, so re-point each pop-up's back at the same app/port element
+    popups.forEach(e => {
+      if (e.back?.isConnected) return;
+      const d = e.back?.dataset || {};
+      const q = d.app != null ? `.section:not(.is-off) [data-app="${d.app}"]` : d.port ? `[data-port="${d.port}"]` : null;
+      if (q) e.back = stage.querySelector(q) || e.back;
+    });
+  }
+  LAYERS.packs = { el: packs,
     onOpen: () => { packs.hidden = false; drawPacks(); TV.focus(pkList.querySelector(`[data-pk="${iconPack}"]`) || pkList.querySelector('[data-f]')); },
     onClose: () => { packs.hidden = true; pkList.innerHTML = ''; } };
   function drawPacks() {
@@ -1914,7 +1921,7 @@
   }
   function setIconPack(id) {
     iconPack = id; store.set('iconpack', id);
-    applyIconPack(); renderAll(); arm(); finishBadges();
+    applyIconPack(); renderAll(); arm(); repointBacks(); finishBadges();
   }
   drawWx();
 

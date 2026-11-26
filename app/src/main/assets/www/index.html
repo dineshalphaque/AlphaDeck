@@ -2099,7 +2099,8 @@
     }
     if (layer === 'extras') {
       const items = [...exList.querySelectorAll('[data-f]')], i = items.indexOf(cur);
-      if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); cur = null; TV.focus(items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length]); }
+      if (k === 'ArrowUp' || k === 'ArrowDown') { stop(); const next = items[(i + (k === 'ArrowUp' ? -1 : 1) + items.length) % items.length];
+        if (next) { if (next !== cur) TV.focus(next); cur = next; } }
       else if ((k === 'ArrowLeft' || k === 'ArrowRight') && items[i]) { stop(); exStep(items[i].dataset.ex, k === 'ArrowLeft' ? -1 : 1); }
       else if (back) { stop(); closeExtras(); }
       else if (k === 'Enter' && e.repeat) stop();

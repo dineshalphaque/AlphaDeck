@@ -39,7 +39,6 @@ const close = async () => {
 
 // known quirks on main: printed as XFAIL and not counted as failures; XPASS means the quirk went away, so look
 const XFAIL = {
-  'extras-Jump:open': 'one-row Extras: Up/Down sets cur = null and TV.focus no-ops on the same row (index.html:1994)',
   'call-over-move:Back': 'a call during move mode: move mode takes the keys first, so Back ends the move and the call stays open',
 };
 let pass = 0, fail = 0, xfail = 0, xpass = 0;
@@ -521,6 +520,23 @@ try {
   } else {
     report('extras-Jump', false, `no-ext-row ${JSON.stringify(await run(`({ jumpOpen: isOpen('jump'), trapped: popups.length > 0, kbdOpen: isOpen('kbd'), extrasOpen: isOpen('extras'), rows: [...jList.querySelectorAll('.jl')].map(e => e.dataset.jl).join(',') })`))}`);
   }
+
+  // ---- extras with a single focusable row: Up/Down must keep page cur on it (no cur = null) ----
+  await run(`openExtras()`); await sleep(350);
+  const eo1 = await run(`(() => {
+    const rows = [...exList.querySelectorAll('[data-f]')];
+    rows.slice(1).forEach(r => r.removeAttribute('data-f'));
+    cur = null; TV.focus(rows[0]);
+    return { n: rows.length };
+  })()`);
+  await sleep(150);
+  await key('ArrowDown'); await sleep(300);
+  const eoDown = await run(`!!(cur && cur.closest('#extras') && cur.dataset.ex && cur.classList.contains('is-focus'))`);
+  await key('ArrowUp'); await sleep(300);
+  const eoUp = await run(`!!(cur && cur.closest('#extras') && cur.dataset.ex && cur.classList.contains('is-focus'))`);
+  report('extras-one-row', eoDown === true && eoUp === true, `rows=${eo1.n} down=${eoDown} up=${eoUp}`);
+  await run(`closeExtras()`); await sleep(300);
+  await closed('extras-one-row');
 
   // ---- the away screen closes Extras: after sleep()+wake() it is gone and the deck has its focus back ----
   await run(`openExtras()`);

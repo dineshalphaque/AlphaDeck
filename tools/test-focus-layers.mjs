@@ -578,7 +578,7 @@ try {
   await sleep(250);
   await closed('sleep-any-layer');
 
-  // ---- ghost keyboard, kept as is (post-refactor list): a mouse click on a key over Jump still closes Jump under it ----
+  // ---- ghost keyboard over Jump: a mouse click on a key must not close the Jump under the keyboard ----
   await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
   await sleep(150);
   await key('j'); await sleep(350);
@@ -586,9 +586,10 @@ try {
   const ghBefore = await run(`popups.map(l => l.id).join(',') || '-'`);
   await run(`$('kKeys').querySelector('[data-f]').click()`); await sleep(300);
   const ghAfter = await run(`popups.map(l => l.id).join(',') || '-'`);
-  report('ghost-kbd-kept', ghBefore === 'jump,kbd' && ghAfter === 'kbd', `was=${ghBefore} now=${ghAfter}`);
+  report('ghost-kbd-over-jump', ghBefore === 'jump,kbd' && ghAfter === 'jump,kbd', `was=${ghBefore} now=${ghAfter}`);
   await run(`closeKbd(false)`); await sleep(300);
-  await closed('ghost-kbd-kept');
+  await run(`if (isOpen('jump')) closeJump()`); await sleep(300);
+  await closed('ghost-kbd-over-jump');
 
   code = fail === 0 ? 0 : 1;
   console.log(`SUMMARY pass=${pass} fail=${fail} xfail=${xfail} xpass=${xpass} total=${pass + fail + xfail + xpass}`);

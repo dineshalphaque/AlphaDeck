@@ -40,7 +40,6 @@ const close = async () => {
 // known quirks on main: printed as XFAIL and not counted as failures; XPASS means the quirk went away, so look
 const XFAIL = {
   'extras-Jump:open': 'one-row Extras: Up/Down sets cur = null and TV.focus no-ops on the same row (index.html:1994)',
-  'call-over-move:Back': 'a call during move mode: move mode takes the keys first, so Back ends the move and the call stays open',
 };
 let pass = 0, fail = 0, xfail = 0, xpass = 0;
 // one line per case; detail is a compact key/value string
@@ -327,7 +326,7 @@ try {
   const cm1 = await run(`({ moving: !!moving, co: isOpen('call') })`);
   await key('Backspace'); await sleep(300);
   const cm2 = await run(`({ moving: !!moving, co: isOpen('call'), stack: popups.map(l => l.id).join(',') || '-' })`);
-  report('call-over-move:Back', cm1.moving === true && cm1.co === true && cm2.co === false, `moving=${cm1.moving} callOpen=${cm1.co} | after Back: moving=${cm2.moving} callOpen=${cm2.co} stack=${cm2.stack}`);
+  report('call-over-move:Back', cm1.moving === true && cm1.co === true && cm2.co === false && cm2.moving === true, `moving=${cm1.moving} callOpen=${cm1.co} | after Back: moving=${cm2.moving} callOpen=${cm2.co} stack=${cm2.stack}`);
   if (cm2.co) { await key('Backspace'); await sleep(300); }   // the second Back declines it
   if (await run(`!!moving`)) { await key('Backspace'); await sleep(300); }
   await closed('call-over-move');

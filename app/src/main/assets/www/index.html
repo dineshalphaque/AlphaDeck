@@ -2367,8 +2367,8 @@
   stage.addEventListener('click', e => {
     if (booting) { e.stopImmediatePropagation(); finishBoot(); }
     else if (inputLink) { e.stopImmediatePropagation(); endLink(); }
-    else if (isOpen('opts') && !e.target.closest('.opts')) { e.stopImmediatePropagation(); closeOpts(); }
-    else if (isOpen('jump') && !e.target.closest('.jump')) { e.stopImmediatePropagation(); closeJump(); }
+    else if (topPopup()?.id === 'opts' && !e.target.closest('.opts')) { e.stopImmediatePropagation(); closeOpts(); }
+    else if (topPopup()?.id === 'jump' && !e.target.closest('.jump')) { e.stopImmediatePropagation(); closeJump(); }
   }, true);
   // a port tile's OK goes through tv.js as a click; tv.js only launches data-app tiles, so ports are handled in tv:select above
 

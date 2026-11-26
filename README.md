@@ -147,12 +147,12 @@ Everything works offline. The extras only connect when you switch them on, in **
 
 - **Weather.** A small readout beside the clock, from [Open-Meteo](https://open-meteo.com) (free, no account).
   Pick a city from the list or type one. It updates every 30 minutes and keeps the last reading when you're offline.
-- **Update check.** About once a day, Home Deck asks GitHub which version is the newest release (the same public
-  address anyone can open: `api.github.com/repos/glidiandev/home-deck/releases/latest`). If there's a newer one, a
+- **Update check.** On by default. About once a day, Alpha Deck asks GitHub which Alpha Deck release is newest (the same public
+  address anyone can open: `api.github.com/repos/dineshalphaque/AlphaDeck/releases/latest`). If there's a newer one, a
   note says so once, and Jump To > About shows it. It never downloads or installs anything: you update with adb, the
-  same way you installed it.
+  same way you installed it. You can switch it off in Jump To > Online extras.
 
-These are the only reasons Home Deck has the internet permission. With the extras off, it doesn't connect to anything.
+These are the only reasons Home Deck has the internet permission. With weather off and the update check switched off, it doesn't connect to anything.
 
 ## What Android doesn't let a home screen do
 
@@ -293,8 +293,9 @@ Uninstalling also removes the Home button helper, if you had it on.
 - Jump back in only knows about apps you opened from Home Deck. Nothing is sent anywhere.
 - The music bar reads the title, artist, app, time and play state of what's playing, and nothing else. It never
   looks at your notifications.
-- The internet permission is only for the online extras (weather, update check), and they're off until you turn
-  them on. Like any website, the services they ask see the TV's IP address.
+- The internet permission is only for the online extras (weather, update check). Weather is off until you turn it
+  on; the update check is on by default and only asks GitHub for the newest Alpha Deck release (it never downloads or
+  installs anything). You can switch it off in Jump To > Online extras. Like any website, the services they ask see the TV's IP address.
 - The Home button helper, if you turn it on, only gets the Home button and hears when Google's own home screens come
   to the front. It reads no screen content and keeps nothing.
 - It also asks for `ACCESS_NETWORK_STATE` and `ACCESS_WIFI_STATE` (for the Network tile),

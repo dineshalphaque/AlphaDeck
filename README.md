@@ -44,8 +44,8 @@ From Home Deck:
   without the time (with the clock off, Lite mode shows a plain dark screen).
 - **Hide and rename apps** from the Hold OK menu.
 - **Home button helper** (optional, see below) for Google TVs that keep their own home screen.
-- **Optional online extras**: weather from Open-Meteo and a daily update check for new Home Deck releases, both off
-  until you turn them on.
+- **Online extras**: weather from Open-Meteo (off until you turn it on) and a daily update check for new Alpha Deck
+  releases (on by default; it notifies only and never downloads or installs anything). You can switch the update check off in Jump To > Online extras.
 
 Added in Alpha Deck:
 
@@ -208,9 +208,9 @@ Uninstalling also removes the Home button helper, if you had it on.
 ## Privacy
 
 Your favorites, names and settings stay on the TV. Nothing is sent anywhere. The internet permission is only for the
-optional online extras (weather, update check), which are off until you turn them on. The Home button helper, if you
-turn it on, only gets the Home button and reads no screen content.
-
+optional online extras: weather from Open-Meteo (off until you turn it on) and a daily update check for new Alpha Deck
+releases (on by default; it notifies only and never downloads or installs anything). You can switch the update check
+off in Jump To > Online extras. The Home button helper, if you turn it on, only gets the Home button and reads no screen content.
 ## Build from source
 
 You'll need JDK 17 and the Android SDK (API 34).

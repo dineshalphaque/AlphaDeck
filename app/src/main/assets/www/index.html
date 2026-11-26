@@ -1344,7 +1344,7 @@
     J.hid.vals = J.hid.list.length ? J.hid.list.map(i => `${APPS[i].name} // OK to show`) : ['None'];
     J.hid.i = Math.min(J.hid.i, J.hid.vals.length - 1);
     if (J.homekey) J.homekey.vals = [NATIVE.homeHelper() ? 'Opens Alpha Deck // OK to turn off' : 'Off // OK to turn on'];
-    J.about.vals = [UPD.latest && newer(UPD.latest, VER) ? `Home Deck v${UPD.latest} is out` : 'Alpha Deck'];
+    J.about.vals = [updNewer() ? `Alpha Deck ${updLabel()} is out` : 'Alpha Deck'];
     jList.innerHTML = Object.entries(J).map(([id, o]) => !o ? '<div class="jump__sep"></div>' : `
       <div class="jl hd-frame" data-jl="${id}"${isOpen('jump') ? ' data-f' : ''}>
         <span class="jl__ico">${o.icon ? `<img src="${ICON(o.icon, '-mini')}" alt="">` : id === 'acc' ? `<span class="jl__sw" style="--sw:${swatch(o.i)}"></span>` : '<i></i>'}</span>
@@ -1394,7 +1394,7 @@
     const o = J[id];
     if (id === 'about') {
       closeJump();
-      const up = UPD.latest && newer(UPD.latest, VER) ? ` Home Deck v${UPD.latest} is out upstream: glidian.dev/home-deck.` : '';
+      const up = updNewer() ? ` Alpha Deck ${updLabel()} is out: github.com/dineshalphaque/AlphaDeck/releases.` : '';
       return toast('area', 'About', VER_LABEL, 'Alpha Deck is a derivative work of Home Deck by glidian.dev. Fan-made and free. App names and logos belong to their owners. Not affiliated with or endorsed by any of them.' + up, 15000);
     }
     if (id === 'hid') { const i = J.hid.list[J.hid.i]; if (i == null) return; unhideApp(i); return drawJump('hid'); }
@@ -1889,30 +1889,58 @@
     WX.city = { name: c[0], lat: c[1], lon: c[2] }; WX.note = ''; store.set('wx-city', WX.city); drawWx();
     clearTimeout(cityTimer); cityTimer = setTimeout(wxFetch, 700);   // wait until the viewer stops on a city
   }
-  /* ---- Update check: off until switched on. Then, once a day, one question to GitHub: which version is the newest release?
-          Nothing is downloaded or installed; a newer one gets a note on screen and in About. The browser preview never asks. */
-  const UPD = { on: !!store.get('upd-on', false), latest: store.get('upd-latest', null), t: store.get('upd-t', 0) || 0, note: '' };
-  const newer = (a, b) => {   // is version a newer than version b ("0.4" vs "0.3-ad-13")
-    const x = String(a).split('.').map(s => parseInt(s, 10) || 0), y = String(b).split('.').map(s => parseInt(s, 10) || 0);
+  /* ---- Update check: on by default. Then, once a day, one question to GitHub: which Alpha Deck release is newest?
+          It compares build numbers, downloads and installs nothing, and only puts a note on screen and in About. The browser preview never asks. */
+  const parseBuild = (...ss) => {
+    for (const s of ss) {
+      if (s == null) continue;
+      const m = /-ad-(\d+)\s*$/i.exec(String(s)) || /-build(\d+)\s*$/i.exec(String(s));
+      if (m) return Number(m[1]);
+    }
+    return null;
+  };
+  const currentBuild = () => {
+    if (typeof globalThis.__updBuild === 'number') return globalThis.__updBuild;
+    try {
+      const a = NATIVE && NATIVE.appVersion && NATIVE.appVersion();
+      if (a && a.code != null) return a.code;
+    } catch {}
+    return parseBuild(VER);
+  };
+  const UPD = { on: !!store.get('upd-on', true), latest: store.get('upd-latest', null), t: store.get('upd-t', 0) || 0, note: '' };
+  const updLabel = () => String(UPD.latest || '').replace(/^v/i, '').replace(/^Alpha Deck\s+/i, '');
+  const updNewer = () => { const b = parseBuild(UPD.latest), cur = currentBuild(); return b != null && cur != null && b > cur; };
+  const newer = (a, b) => {   // is version a newer than version b ("0.3" vs "0.2.1")
+    const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let k = 0; k < Math.max(x.length, y.length); k++) { const d = (x[k] || 0) - (y[k] || 0); if (d) return d > 0; }
     return false;
   };
   async function updCheck(force) {
-    if (!UPD.on || !NATIVE) return;                           // off: no network, ever
+    if (!UPD.on) return;                                      // off: no network, ever
+    if (!NATIVE && typeof globalThis.__updFetch !== 'function') return;   // browser preview: no network
     if (!force && Date.now() - UPD.t < 20 * 3600000) return;   // at most about once a day
     try {
-      const r = await fetch('https://api.github.com/repos/glidiandev/home-deck/releases/latest',
-                            { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } });
+      const get = globalThis.__updFetch || fetch;
+      const r = await get('https://api.github.com/repos/dineshalphaque/AlphaDeck/releases/latest',
+                          { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } });
       if (!r.ok) throw new Error(r.status);
-      const v = String((await r.json()).tag_name || '').replace(/^v/i, '');
-      if (!/^\d+(\.\d+)*$/.test(v)) throw new Error('tag');
+      const rel = await r.json();
+      if (rel.draft === true || rel.prerelease === true) throw new Error('release');
+      const build = parseBuild(rel.tag_name, rel.name);
+      if (build === null) throw new Error('tag');
       if (!UPD.on) return;                                     // switched off while waiting
-      UPD.t = Date.now(); UPD.latest = v; store.set('upd-t', UPD.t); store.set('upd-latest', v);
-      UPD.note = newer(v, VER) ? `Home Deck v${v} is out. Get it from glidian.dev/home-deck.` : `Up to date. v${VER} is the newest.`;
-      if (newer(v, VER) && store.get('upd-told', '') !== v) {   // say so once per new version
-        store.set('upd-told', v);
-        toast('reward', 'Update', `Home Deck v${v} is out`, 'Get it from glidian.dev/home-deck, or the releases page on GitHub.', 12000);
-      }
+      const tag = String(rel.tag_name || '').replace(/^v/i, '');
+      const name = String(rel.name || '').replace(/^v/i, '').replace(/^Alpha Deck\s+/i, '');
+      const label = tag && parseBuild(tag) != null ? tag : (name || tag);
+      UPD.t = Date.now(); UPD.latest = label; store.set('upd-t', UPD.t); store.set('upd-latest', label);
+      const cur = currentBuild();
+      if (cur != null && build > cur) {
+        UPD.note = `Alpha Deck ${label} is out. Get it from github.com/dineshalphaque/AlphaDeck/releases.`;
+        if (store.get('upd-told', '') !== String(build)) {      // say so once per new build
+          store.set('upd-told', String(build));
+          toast('reward', 'Update', `Alpha Deck ${label} is out`, 'Get it from github.com/dineshalphaque/AlphaDeck/releases.', 12000);
+        }
+      } else UPD.note = `Up to date. Alpha Deck ${VER} is the newest.`;
     } catch { UPD.note = 'Could not reach GitHub. It tries again later.'; }
     redrawEx('upd');
   }
@@ -1924,7 +1952,7 @@
       { id: 'on', name: 'Weather', desc: 'Connects to Open-Meteo (open-meteo.com) for the forecast in your city. No account, no key.', val: on ? 'On' : 'Off', arrows: true },
       ...(on ? [{ id: 'city', sub: true, name: 'City', desc: WX.note || 'Left and right for a list; OK to type any city.', val: cityName, arrows: true },
                 { id: 'unit', sub: true, name: 'Units', desc: 'Fahrenheit or Celsius.', val: WX.unit === 'C' ? '°C' : '°F', arrows: true }] : []),
-      { id: 'upd', name: 'Update check', desc: UPD.on && UPD.note ? UPD.note : 'Asks GitHub (github.com) once a day for the newest version number. Nothing is installed by itself.', val: UPD.on ? 'On' : 'Off', arrows: true },
+      { id: 'upd', name: 'Update check', desc: UPD.on && UPD.note ? UPD.note : 'Asks GitHub (github.com) once a day for the newest Alpha Deck release. Nothing is installed by itself.', val: UPD.on ? 'On' : 'Off', arrows: true },
       { id: 'art', off: true, name: 'Show artwork', desc: 'Would connect to an online film and TV database for posters.', val: 'Coming later' },
       { id: 'voice', off: true, name: 'Voice search', desc: 'Would send your voice to a speech service to turn it into words.', val: 'Coming later' },
     ];

@@ -1242,6 +1242,7 @@
     if (popups.length) { if (back?.isConnected) TV.focus(back); return; }   // the keyboard over another pop-up: back to the control that opened it
     arm(); renderLive(); arm();
     TV.focus(back?.isConnected && back.hasAttribute('data-f') ? back : stage.querySelector('.section:not(.is-off) [data-f]'));
+    flushPendingCall();
   }
   function closeAll() { while (popups.length) closeLayer(topPopup().id); }
   function drawJump(keep) {
@@ -1338,15 +1339,23 @@
   /* ---- input detected: an incoming call in the corner ---- */
   const call = $('call'), callGo = $('callGo'), callNo = $('callNo');
   let callPort = null;
+  let pendingCall = null;
   LAYERS.call = { el: call, onOpen: () => { call.classList.add('on'); callGo.setAttribute('data-f', ''); callNo.setAttribute('data-f', ''); TV.focus(callGo); },
     onClose: () => { call.classList.remove('on'); callGo.removeAttribute('data-f'); callNo.removeAttribute('data-f'); callGo.classList.remove('is-focus'); callNo.classList.remove('is-focus'); callPort.signal = true; callPort.t = Date.now(); } };
   function incoming(p = PORTS[2]) {
-    if (!p || popups.length || p.arc) return;
+    if (!p || p.arc) return;
+    if (popups.length) { pendingCall = p; return; }
     closeOpts(false);
     callPort = p;
     $('callPort').firstChild.textContent = `Incoming // HDMI ${p.n}`;
     $('callName').textContent = portName(p); $('callImg').src = ICON(p.emblem, '-bg');
     openLayer('call');
+  }
+  function flushPendingCall() {
+    if (!pendingCall) return;
+    if (!pendingCall.signal) { pendingCall = null; return; }
+    if (popups.length || sleeping || booting || pendingCall.arc) return;
+    const p = pendingCall; pendingCall = null; incoming(p);
   }
   function endCall(go) {
     if (!isOpen('call')) return;
@@ -2023,7 +2032,7 @@
   }
   let away = null;
   const endRain = () => { if (away) { away.stop(); away = null; } sbPos.hidden = false; };
-  function wake() { sleeping = false; clearInterval(driftTimer); endRain(); standby.classList.remove('on'); showHints(); }
+  function wake() { sleeping = false; clearInterval(driftTimer); endRain(); standby.classList.remove('on'); showHints(); flushPendingCall(); }
   const poke = () => { clearTimeout(idleTimer); idleTimer = setTimeout(sleep, IDLE); };
   poke();
 
@@ -2034,6 +2043,7 @@
     if (!store.get('setup-done', false) && !/[?&]nosetup\b/.test(location.search)) openSetup(); else showHints();
     setTimeout(frameCheck, 600);
     wxFetch();                                                  // only does anything when Weather is switched on
+    flushPendingCall();
   };
   [['Power', 'ON'], ['Apps', String(APPS.length)], ['Inputs', `${PORTS.length} HDMI`], ['Recent apps', '5'], ['Home', 'READY']].forEach(([k, v], i) =>
     setTimeout(() => $('bootLog').insertAdjacentHTML('beforeend', `<div class="hd-log__line"><span>//${k.toUpperCase().replace(/ /g, '_')}</span><span>${v}</span></div>`), reduce ? 0 : 180 + i * 170));
@@ -2173,18 +2183,19 @@
   if (NATIVE) {
     NATIVE.on('resume', () => { TV.back(); endLink(); });
     NATIVE.on('home', () => { TV.back(); endLink(); });
-    NATIVE.on('inputs', list => {
-      let fresh = null;
-      list.forEach(q => {
-        const p = PORTS.find(x => x.id === q.id);
-        if (!p) return;
-        if (q.connected && !p.signal && !p.arc) fresh = p;
-        p.signal = !!q.connected; p.cec = q.cec || null; p.emblem = portArt(p.cec);
-        if (q.connected && !p.t) p.t = Date.now();
-      });
-      const prev = cur; renderInputs(); renderLive(); arm(); refocus(prev);
-      if (fresh && !sleeping && !booting) incoming(fresh);
+    NATIVE.on('inputs', onInputs);
+  }
+  function onInputs(list) {
+    let fresh = null;
+    list.forEach(q => {
+      const p = PORTS.find(x => x.id === q.id);
+      if (!p) return;
+      if (q.connected && !p.signal && !p.arc) fresh = p;
+      p.signal = !!q.connected; p.cec = q.cec || null; p.emblem = portArt(p.cec);
+      if (q.connected && !p.t) p.t = Date.now();
     });
+    const prev = cur; renderInputs(); renderLive(); arm(); refocus(prev);
+    if (fresh) { if (sleeping || booting) pendingCall = fresh; else incoming(fresh); }
   }
   TV.start();
   TV.focus(stage.querySelector('#fav [data-f]'));

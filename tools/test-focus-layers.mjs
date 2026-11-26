@@ -291,6 +291,9 @@ try {
     const rf = await run(`({ stack: popups.map(l => l.id).join(',') || '-', co: isOpen('call'), on: $('call').classList.contains('on'), trapped: popups.length > 0 })`);
     report(`call-refused-${name}`, rf.stack === was && was !== '-' && rf.co === false && rf.on === false && rf.trapped === true, `stack ${was}->${rf.stack} callOpen=${rf.co} on=${rf.on} trapped=${rf.trapped}`);
     await run(shut); await sleep(400);
+    // incoming() now remembers the call and shows it once the last pop-up closes
+    await run(`(() => { if (isOpen('call')) endCall(false); pendingCall = null; const h = PORTS.find(p => p.id === 'h3'); if (h) { h.signal = false; h.t = 0; } })()`);
+    await sleep(200);
     await closed(`call-refused-${name}`);
   }
 
@@ -318,6 +321,46 @@ try {
   report('call-during-away', ca1.stack === 'call' && ca1.sleeping === true && ca2.stack === 'call' && ca2.sleeping === false && ca2.go === true && ca3 === '-',
     `asleep stack=${ca1.stack} | first key: sleeping=${ca2.sleeping} stack=${ca2.stack} curIsCallGo=${ca2.go} | Back: stack=${ca3}`);
   await closed('call-during-away');
+
+  const connectH3 = `typeof onInputs === 'function' && onInputs(PORTS.map(p => ({ id: p.id, connected: p.id === 'h3' ? true : !!p.signal, cec: p.cec })))`;
+  const dropH3 = `typeof onInputs === 'function' && onInputs(PORTS.map(p => ({ id: p.id, connected: p.id === 'h3' ? false : !!p.signal, cec: p.cec })))`;
+  const resetH3 = `(() => { if (isOpen('call')) endCall(false); pendingCall = null; const h = PORTS.find(p => p.id === 'h3'); h.signal = false; h.t = 0; })()`;
+
+  // ---- a connect during a pop-up is remembered: the prompt appears once the pop-up closes -------------------
+  await run(resetH3); await sleep(100);
+  await run(`TV.focus([...document.querySelectorAll('.section:not(.is-off) [data-app]')].find(e => e.offsetParent))`);
+  await sleep(150);
+  await run(`openJump()`); await sleep(350);
+  await run(connectH3); await sleep(300);
+  const pc1 = await run(`({ call: isOpen('call'), jump: isOpen('jump'), stack: popups.map(l => l.id).join(',') || '-' })`);
+  await run(`closeJump()`); await sleep(350);
+  const pc2 = await run(`({ call: isOpen('call'), port: callPort?.id, stack: popups.map(l => l.id).join(',') || '-' })`);
+  report('pending-call-over-jump', pc1.call === false && pc1.jump === true && pc2.call === true && pc2.port === 'h3',
+    `during jump: call=${pc1.call} jump=${pc1.jump} stack=${pc1.stack} | after close: call=${pc2.call} port=${pc2.port} stack=${pc2.stack}`);
+  await run(resetH3); await sleep(300);
+  await closed('pending-call-over-jump');
+
+  // ---- a connect while asleep is remembered: the prompt appears on wake -------------------------------------
+  await run(`sleep()`); await sleep(250);
+  await run(connectH3); await sleep(300);
+  const pa1 = await run(`({ call: isOpen('call'), sleeping })`);
+  await run(`wake()`); await sleep(350);
+  const pa2 = await run(`({ call: isOpen('call'), port: callPort?.id })`);
+  report('pending-call-over-away', pa1.call === false && pa1.sleeping === true && pa2.call === true && pa2.port === 'h3',
+    `asleep: call=${pa1.call} sleeping=${pa1.sleeping} | after wake: call=${pa2.call} port=${pa2.port}`);
+  await run(resetH3); await sleep(300);
+  await closed('pending-call-over-away');
+
+  // ---- a remembered connect that drops before the pop-up closes never shows a prompt ------------------------
+  await run(`openJump()`); await sleep(350);
+  await run(connectH3); await sleep(300);
+  await run(dropH3); await sleep(300);
+  await run(`closeJump()`); await sleep(350);
+  const pd1 = await run(`({ call: isOpen('call'), stack: popups.map(l => l.id).join(',') || '-' })`);
+  report('pending-call-disconnect', pd1.call === false && pd1.stack === '-',
+    `after close: call=${pd1.call} stack=${pd1.stack}`);
+  await run(resetH3); await sleep(300);
+  await closed('pending-call-disconnect');
 
   // ---- call during move mode (move mode takes every key first, in the key handler's move branch): characterization, XFAIL ---------------
   await openOptsOnTile();

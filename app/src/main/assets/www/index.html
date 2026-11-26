@@ -2055,7 +2055,7 @@
     if (inputLink) { stop(); return endLink(); }
     if (launchEl.classList.contains('on')) return;
     if (k === 'Enter' && swallowOk) { stop(); return; }
-    if (moving) {
+    if (moving && !popups.length) {
       stop();
       if (e.repeat && k === 'Enter') return;
       if (k === 'ArrowLeft' || k === 'ArrowRight') slideTo([...moving.box.children].indexOf(moving.el) + (k === 'ArrowLeft' ? -1 : 1));

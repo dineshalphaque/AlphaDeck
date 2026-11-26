@@ -1369,7 +1369,6 @@
   applyLean();
   function openJump() {
     if (popups.length) return;
-    closeOpts(false);
     openLayer('jump');
     HD.glitch(jump);
   }
@@ -1447,7 +1446,6 @@
   function incoming(p = PORTS[2]) {
     if (!p || p.arc) return;
     if (popups.length) { pendingCall = p; return; }
-    closeOpts(false);
     callPort = p;
     $('callPort').firstChild.textContent = `Incoming // HDMI ${p.n}`;
     $('callName').textContent = portName(p); $('callImg').src = ICON(p.emblem, '-bg');
@@ -1512,7 +1510,7 @@
     opts.style.top = Math.max(190, ty - opts.offsetHeight - 18) + 'px';
     TV.focus(oList.querySelector('[data-f]')); $('oWhy').textContent = '';
   }
-  function closeOpts(refocusIt = true) {
+  function closeOpts() {
     if (!isOpen('opts')) return;
     closeLayer('opts');
   }
